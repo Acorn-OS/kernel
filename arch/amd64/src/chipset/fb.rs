@@ -8,17 +8,25 @@ static mut X: usize = 0;
 static mut Y: usize = 0;
 
 #[derive(Clone, Copy)]
-pub struct Colour(u8);
-static_assertions::assert_eq_size!(Colour, u8);
+pub struct Color(u8);
+static_assertions::assert_eq_size!(Color, u8);
 
-impl Colour {
-    pub const BLACK: Self = Colour(0);
-    pub const WHITE: Self = Colour(15);
+impl Color {
+    pub const BLACK: Self = Color(0);
+    pub const WHITE: Self = Color(15);
+
+    #[inline]
+    fn from_hal_color(color: hal::fb::Color) -> Self {
+        match color {
+            hal::fb::Color::Black => Self::BLACK,
+            hal::fb::Color::White => Self::WHITE,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
-struct Pixel(u8, Colour);
+struct Pixel(u8, Color);
 static_assertions::assert_eq_size!(Pixel, u16);
 
 #[inline(always)]
@@ -39,7 +47,7 @@ unsafe fn step() {
 }
 
 #[inline(always)]
-unsafe fn place(c: char, col: Colour) {
+unsafe fn place(c: char, col: Color) {
     FB_PTR.add(X).add(Y * FB_WIDTH).write(Pixel(c as u8, col));
 }
 
@@ -53,7 +61,7 @@ pub unsafe fn set_pos(x: usize, y: usize) {
 }
 
 #[inline]
-pub unsafe fn putc(c: char, col: Colour) {
+pub unsafe fn putc(c: char, col: Color) {
     match c {
         '\n' => newline(),
         '\r' => X = 0,
@@ -65,7 +73,7 @@ pub unsafe fn putc(c: char, col: Colour) {
 }
 
 #[inline]
-pub unsafe fn puts(s: &str, col: Colour) {
+pub unsafe fn puts(s: &str, col: Color) {
     for c in s.chars() {
         putc(c, col)
     }
@@ -76,4 +84,35 @@ pub unsafe fn clear() {
     FB_PTR.write_bytes(0, FB_WIDTH * FB_HEIGHT * size_of::<Pixel>());
     X = 0;
     Y = 0;
+}
+
+mod hal_impl {
+    use hal::fb;
+
+    static mut COLOR: fb::Color = fb::Color::White;
+
+    #[no_mangle]
+    pub unsafe fn hal_fb_clear() {
+        super::clear()
+    }
+
+    #[no_mangle]
+    pub unsafe fn hal_fb_set_pos(x: usize, y: usize) {
+        super::set_pos(x, y)
+    }
+
+    #[no_mangle]
+    pub unsafe fn hal_fb_putc(c: char) {
+        super::putc(c, super::Color::from_hal_color(COLOR))
+    }
+
+    #[no_mangle]
+    pub unsafe fn hal_fb_puts(s: &str) {
+        super::puts(s, super::Color::from_hal_color(COLOR))
+    }
+
+    #[no_mangle]
+    pub unsafe fn hal_fb_set_color(color: hal::fb::Color) {
+        COLOR = color;
+    }
 }

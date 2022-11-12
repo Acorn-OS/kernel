@@ -32,6 +32,7 @@ SECTIONS {
     
     . = kernel_virt_adr + kernel_load_adr;
 
+    __executable_start = .;
     .setup : AT(ADDR(.setup) - kernel_virt_adr) {
         KEEP(*(.setup))
     }
@@ -53,6 +54,14 @@ SECTIONS {
         *(.rodata .rodata.*)
     }
 
+    .eh_frame ALIGN(4K) : AT(ADDR(.eh_frame) - kernel_virt_adr) { 
+        PROVIDE(__eh_frame = .);
+        KEEP(*(.eh_frame)) *(.eh_frame.*) 
+    }
+
+    . = ALIGN(512);
+
+    __etext = .;
     kernel_size = . - (kernel_virt_adr + kernel_load_adr);
 
     .bss ALIGN(4K) (NOLOAD) : {
@@ -64,14 +73,14 @@ SECTIONS {
         bss_end = .;
     }
 
-    . = ALIGN(4K);
-
     . = . - kernel_virt_adr;
 
-    kernel_free_mem_adr = .;
-    . += 16M;
     . = ALIGN(4K);
     base_page_table = .;
+    . += 4K;
+
+    kernel_free_mem_adr = .;
+    . += 256M;
     kernel_free_mem_len = .;
 } 
 

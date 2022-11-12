@@ -18,7 +18,6 @@ stage2:
     mov ecx, offset kernel_size     # Amount of sectors to load.
     shr esi, 9
     shr ecx, 9
-    inc ecx
     call load_from_disk
     mov si, offset load_error_msg
     jc error

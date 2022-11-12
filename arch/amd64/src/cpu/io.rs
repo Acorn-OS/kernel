@@ -2,6 +2,7 @@
 #![allow(missing_docs, dead_code)]
 
 use core::arch::asm;
+use util::delay;
 
 // IO output (fast)
 #[inline(always)]
@@ -44,19 +45,19 @@ pub fn out32(port: u16, v: u32) {
 #[inline(always)]
 pub fn out8_delay(port: u16, v: u8) {
     out8(port, v);
-    delay!(512);
+    delay(512);
 }
 
 #[inline(always)]
 pub fn out16_delay(port: u16, v: u16) {
     out16(port, v);
-    delay!(512);
+    delay(512);
 }
 
 #[inline(always)]
 pub fn out32_delay(port: u16, v: u32) {
     out32(port, v);
-    delay!(512);
+    delay(512);
 }
 
 // IO input (fast)
@@ -106,20 +107,20 @@ pub fn in32(port: u16) -> u32 {
 #[inline(always)]
 pub fn in8_delay(port: u16) -> u8 {
     let ret = in8(port);
-    delay!(512);
+    delay(512);
     ret
 }
 
 #[inline(always)]
 pub fn in16_delay(port: u16) -> u16 {
     let ret = in16(port);
-    delay!(512);
+    delay(512);
     ret
 }
 
 #[inline(always)]
 pub fn in32_delay(port: u16) -> u32 {
     let ret = in32(port);
-    delay!(512);
+    delay(512);
     ret
 }

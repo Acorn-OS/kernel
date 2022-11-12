@@ -1,13 +1,14 @@
 use crate::{drivers, fb};
+use util::logging::log::{Log, Metadata, Record};
 
 struct KLog;
 
-impl log::Log for KLog {
-    fn enabled(&self, _: &log::Metadata) -> bool {
+impl Log for KLog {
+    fn enabled(&self, _: &Metadata) -> bool {
         true
     }
 
-    fn log(&self, record: &log::Record) {
+    fn log(&self, record: &Record) {
         ::core::fmt::write(
             unsafe { &mut *(self as *const Self as *mut Self) },
             format_args!("{}\n\r", record.args()),
@@ -29,6 +30,5 @@ impl core::fmt::Write for KLog {
 static KLOG: KLog = KLog;
 
 pub fn init() {
-    log::set_logger(&KLOG).expect("failed to set logger");
-    log::set_max_level(log::LevelFilter::max());
+    unsafe { util::logging::init_logging(&KLOG) };
 }

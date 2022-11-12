@@ -16,17 +16,15 @@ extern crate alloc;
 
 #[allow(unused_imports)]
 #[macro_use]
-extern crate log;
-
-#[allow(unused_imports)]
-#[macro_use]
 extern crate static_assertions;
 
 #[allow(unused_imports)]
 #[macro_use]
-mod util;
+extern crate util;
 
-mod arch;
+extern crate unwinding;
+
+mod boot;
 mod drivers;
 mod fb;
 mod klog;
@@ -40,13 +38,7 @@ const VERSION_MAJOR: usize = 0;
 
 #[no_mangle]
 pub extern "C" fn rust_main() -> ! {
-    // Initializes com drivers for serial printing.
-    drivers::com::init();
-
-    klog::init();
-
     mm::vmalloc::init();
-    mm::paging::init();
     drivers::init();
 
     fb::clear();
@@ -57,6 +49,29 @@ pub extern "C" fn rust_main() -> ! {
         util::ei();
         util::halt()
     }
+}
+
+pub unsafe fn stack_trace() {
+    struct CallbackData {
+        counter: usize,
+    }
+    extern "C" fn callback(
+        unwind_ctx: &mut unwinding::abi::UnwindContext<'_>,
+        arg: *mut core::ffi::c_void,
+    ) -> unwinding::abi::UnwindReasonCode {
+        let data = unsafe { &mut *(arg as *mut CallbackData) };
+        data.counter += 1;
+        if data.counter < 1 {
+            debug!(
+                "{:4} {:19X}\n",
+                data.counter,
+                unwinding::abi::_Unwind_GetIP(unwind_ctx)
+            );
+        }
+        unwinding::abi::UnwindReasonCode::NO_REASON
+    }
+    let mut data = CallbackData { counter: 0 };
+    unwinding::abi::_Unwind_Backtrace(callback, &mut data as *mut _ as _);
 }
 
 #[panic_handler]
@@ -72,6 +87,8 @@ pub unsafe fn panic_handler(info: &core::panic::PanicInfo) -> ! {
         ("(UNAVAILABLE)", 0, 0)
     };
     info!("panic! in {} at {}:{}\n\r{}", file, line, column, msg);
+    stack_trace();
+    unwinding::panic::begin_panic(alloc::boxed::Box::new(()));
     loop {
         util::di();
         util::halt()

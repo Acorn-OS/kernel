@@ -1,4 +1,3 @@
-use crate::ksyms;
 use core::{arch::asm, mem::size_of, ops::RangeInclusive};
 
 #[derive(Clone, Copy)]
@@ -95,6 +94,8 @@ impl PageSize {
         1 << self.log2()
     }
 }
+
+static mut PAGE_TABLE_BASE_ADR: usize = 0;
 
 proc_macro::idef! {
     static ALLOCATOR = {}
@@ -223,7 +224,11 @@ proc_macro::idef! {
         }
 
         fn get_base(&self) -> &'static mut PageDirectory {
-            unsafe { &mut *(ksyms::root_pt() as *mut PageDirectory) }
+            unsafe { &mut *(PAGE_TABLE_BASE_ADR as *mut PageDirectory) }
         }
     }
+}
+
+pub unsafe fn init(paging_base_adr: usize) {
+    PAGE_TABLE_BASE_ADR = paging_base_adr;
 }

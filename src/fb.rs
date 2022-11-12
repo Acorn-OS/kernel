@@ -1,4 +1,4 @@
-use crate::arch::fb;
+use hal::fb;
 
 proc_macro::idef! {
     static TTY = {
@@ -15,11 +15,11 @@ proc_macro::idef! {
         }
 
         pub fn putc(&mut self, c: char) {
-            unsafe { fb::putc(c, fb::Colour::WHITE) }
+            unsafe { fb::putc(c) }
         }
 
         pub fn puts(&mut self, s: &str) {
-            unsafe { fb::puts(s, fb::Colour::WHITE) }
+            unsafe { fb::puts(s) }
         }
     }
 }

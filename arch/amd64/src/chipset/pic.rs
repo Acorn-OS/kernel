@@ -1,4 +1,4 @@
-use crate::arch::io::{in8_delay, out8_delay};
+use crate::cpu::io::{in8_delay, out8_delay};
 
 const PIC1_BASE: u16 = 0x20;
 const PIC2_BASE: u16 = 0xA0;

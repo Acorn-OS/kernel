@@ -1,6 +1,6 @@
 #![allow(unreachable_code)]
 
-pub use crate::arch::{idt, pic};
+pub use crate::{chipset::pic, cpu::idt};
 use core::fmt::Display;
 
 /// A stack frame for retaining register values

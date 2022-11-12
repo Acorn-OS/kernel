@@ -3,6 +3,18 @@
 version = 3
 
 [[package]]
+name = "amd64"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "hal",
+ "proc-macro",
+ "spin",
+ "static_assertions",
+ "util",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -24,14 +36,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "gimli"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22030e2c5a68ec659fde1e949a745124b48e6fa8b045b7ed5bd1fe4ccc5c4e5d"
+
+[[package]]
+name = "hal"
+version = "0.1.0"
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "amd64",
  "cfg-if",
- "log",
+ "hal",
  "proc-macro",
  "spin",
  "static_assertions",
+ "unwinding",
+ "util",
 ]
 
 [[package]]
@@ -116,3 +141,20 @@ name = "unicode-ident"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ceab39d59e4c9499d4e5a8ee0e2735b891bb7308ac83dfb4e80cad195c9f6f3"
+
+[[package]]
+name = "unwinding"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a68d24ef3fb840b7807a0d1f33c4a7adc50b39129574b8a295daa6ccda38a83b"
+dependencies = [
+ "gimli",
+]
+
+[[package]]
+name = "util"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "spin",
+]

@@ -1,6 +1,6 @@
 //! COM serial hardware.
 
-use crate::arch::io::{in8, out8};
+use amd64::cpu::io::{in8, out8};
 use spin::Mutex;
 
 struct COM(u16);
