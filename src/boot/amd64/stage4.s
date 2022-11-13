@@ -25,6 +25,8 @@ stage4:
     # Make sure the direction flag is cleared
     cld
 
+    # Sets end of stack trace.
+    xor rbp, rbp 
     # Enter into Rust code.
     jmp __rust_entry
 looping:

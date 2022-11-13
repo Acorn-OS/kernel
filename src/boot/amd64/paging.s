@@ -9,9 +9,12 @@ pg_init:
     or eax, 0x03
     mov [edi], eax
     
-    # Identity maps the first GiB.
+    # Identity maps the first 4GiB.
     mov edi, offset pd0   
     mov long ptr [edi], 0x83
+    mov long ptr [edi + 8], 0x83 | (1 << 30)
+    mov long ptr [edi + 16], 0x83 | (2 << 30)
+    mov long ptr [edi + 24], 0x83 | (3 << 30)
 
     # Map the first 2 GiB of physical memory to virtual memory [0xffffffff80000000, 0xffffffffffffffff].
 

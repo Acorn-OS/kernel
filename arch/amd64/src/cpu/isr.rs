@@ -86,69 +86,69 @@ mod irq {
     pub fn pit() {}
 
     pub fn kbd() {
-        unimplemented!()
+        panic!("kbd")
     }
 
     pub fn cascade() {
-        unimplemented!()
+        panic!("cascade")
     }
 
     pub fn com2() {
-        unimplemented!()
+        panic!("com2")
     }
 
     pub fn com1() {
-        unimplemented!()
+        panic!("com1")
     }
 
     pub fn lpt2() {
-        unimplemented!()
+        panic!("lpt2")
     }
 
     pub fn floppy() {
-        unimplemented!()
+        panic!("floppy")
     }
 
     pub fn lpt1() {
-        unimplemented!()
+        panic!("lpt1")
     }
 
     pub fn cmos_rtc() {
-        unimplemented!()
+        panic!("cmos_rtc")
     }
 
     pub fn free0() {
-        unimplemented!()
+        panic!("free0")
     }
 
     pub fn free1() {
-        unimplemented!()
+        panic!("free1")
     }
 
     pub fn free2() {
-        unimplemented!()
+        panic!("free2")
     }
 
     pub fn mouse() {
-        unimplemented!()
+        panic!("mouse")
     }
 
     pub fn cp() {
-        unimplemented!()
+        panic!("cp")
     }
 
     pub fn primary_disk() {
-        unimplemented!()
+        panic!("primary disk")
     }
 
     pub fn secondary_disk() {
-        unimplemented!()
+        panic!("secondary_disk")
     }
 }
 
 mod exception {
     pub fn pg_fault() {
-        unimplemented!()
+        panic!("pg_fault")
     }
 }
 

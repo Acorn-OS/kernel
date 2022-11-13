@@ -56,7 +56,8 @@ SECTIONS {
 
     .eh_frame ALIGN(4K) : AT(ADDR(.eh_frame) - kernel_virt_adr) { 
         PROVIDE(__eh_frame = .);
-        KEEP(*(.eh_frame)) *(.eh_frame.*) 
+        KEEP(*(.eh_frame)) 
+        *(.eh_frame.*) 
     }
 
     . = ALIGN(512);

@@ -1,4 +1,4 @@
-use crate::{drivers, klog, ksyms, rust_main};
+use crate::{drivers, fb, klog, ksyms, mm, rust_main};
 use amd64::{chipset, cpu};
 use core::arch::global_asm;
 
@@ -23,6 +23,11 @@ unsafe extern "C" fn __rust_entry() -> ! {
 
     klog::init();
 
+    mm::vmalloc::init();
+    drivers::init();
+
+    fb::clear();
+
     cpu::isr::init_excepts(EXCEPT_START_VEC);
     cpu::isr::init_irqs(IRQ_START_VEC);
     chipset::pic::remap(IRQ_START_VEC, IRQ_START_VEC + 8);
@@ -45,9 +50,5 @@ unsafe extern "C" fn __rust_entry() -> ! {
     );
     unsafe { cpu::paging::install() };
 
-    unwinding::panic::catch_unwind(|| {
-        rust_main();
-    })
-    .expect("unwinding.");
-    loop {}
+    rust_main();
 }

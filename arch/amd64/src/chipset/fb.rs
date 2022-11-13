@@ -89,7 +89,7 @@ pub unsafe fn clear() {
 mod hal_impl {
     use hal::fb;
 
-    static mut COLOR: fb::Color = fb::Color::White;
+    static mut COLOR: super::Color = super::Color::WHITE;
 
     #[no_mangle]
     pub unsafe fn hal_fb_clear() {
@@ -103,16 +103,16 @@ mod hal_impl {
 
     #[no_mangle]
     pub unsafe fn hal_fb_putc(c: char) {
-        super::putc(c, super::Color::from_hal_color(COLOR))
+        super::putc(c, COLOR)
     }
 
     #[no_mangle]
     pub unsafe fn hal_fb_puts(s: &str) {
-        super::puts(s, super::Color::from_hal_color(COLOR))
+        super::puts(s, COLOR)
     }
 
     #[no_mangle]
     pub unsafe fn hal_fb_set_color(color: hal::fb::Color) {
-        COLOR = color;
+        COLOR = super::Color::from_hal_color(color);
     }
 }

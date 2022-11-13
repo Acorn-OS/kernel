@@ -8,7 +8,7 @@
     "target-c-int-width": "32",
     "os": "none",
     "executables": true,
-    "panic-strategy": "abort",
+    "panic-strategy": "unwind",
     "disable-redzone": true,
     "features": "-mmx,-sse,+soft-float"
 }

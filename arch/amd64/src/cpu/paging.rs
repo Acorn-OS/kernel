@@ -122,7 +122,6 @@ proc_macro::idef! {
                     (12 + (9 * $val))
                 };
             }
-
             macro_rules! indexes {
                 ($start:ident, $end:ident, $shift:literal) => {
                     let $start = (vstart >> shft!($shift)) & 0x1FF;

@@ -19,7 +19,6 @@ members = [
 cfg-if = "1.0.0"
 spin = "0.9.4"
 static_assertions = "1.1.0"
-unwinding = { version = "0.1.5", default-features = false, features = ["unwinder", "fde-static", "personality", "panic"] }
 
 [dependencies.proc-macro]
 path = "macros"
@@ -32,3 +31,13 @@ path = "hal"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies.amd64]
 path = "arch/amd64"
+
+[profile.dev]
+opt-level = 1
+debug-assertions = true 
+debug = true
+lto = false
+
+[profile.release]
+opt-level = 3
+lto = true
