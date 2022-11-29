@@ -7,9 +7,7 @@ name = "amd64"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
- "hal",
- "proc-macro",
- "spin",
+ "libmm",
  "static_assertions",
  "util",
 ]
@@ -21,35 +19,59 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "boot"
+version = "0.1.0"
+dependencies = [
+ "amd64",
+ "kernel",
+ "mm",
+ "util",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "defs"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "hal"
-version = "0.1.0"
-
-[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
- "amd64",
  "cfg-if",
- "hal",
- "proc-macro",
  "spin",
  "static_assertions",
  "util",
+]
+
+[[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+
+[[package]]
+name = "libio"
+version = "0.1.0"
+dependencies = [
+ "link",
+]
+
+[[package]]
+name = "libmm"
+version = "0.1.0"
+dependencies = [
+ "link",
+]
+
+[[package]]
+name = "link"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -72,11 +94,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "proc-macro"
+name = "mm"
 version = "0.1.0"
 dependencies = [
- "defs",
- "spin",
+ "cfg-if",
+ "libmm",
+ "static_assertions",
+ "util",
 ]
 
 [[package]]
@@ -120,9 +144,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "syn"
-version = "1.0.103"
+version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a864042229133ada95abf3b54fdc62ef5ccabe9515b64717bcb9a1919e59445d"
+checksum = "4ae548ec36cf198c0ef7710d3c230987c2d6d7bd98ad6edc0274462724c585ce"
 dependencies = [
  "proc-macro2",
  "quote",

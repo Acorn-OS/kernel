@@ -1,6 +1,7 @@
 use super::gdt;
 use core::arch::asm;
 
+#[allow(dead_code)]
 #[repr(u8)]
 enum Attribute {
     TaskGate = 0b0101,
@@ -56,51 +57,56 @@ impl IDTR {
     }
 }
 
-proc_macro::idef! {
-    #[repr(C)]
-    #[repr(align(0x10))]
-    static IDT = {
-        entries: [IDTEntry; 256] = [IDTEntry::new_null(); 256],
-    }
-    impl {
-        /// Sets a descriptor in the IDT.
-        pub fn set_descriptor(&mut self, index: u8, interrupt_handler: unsafe extern "C" fn()) {
-            self.set_entry(index, interrupt_handler as u64);
-        }
+struct IDT {
+    entries: [IDTEntry; 256],
+}
 
-        /// Removes the descriptor from the table.
-        pub fn remove_descriptor(&mut self, index: u8) {
-            self.set_entry_from(index, IDTEntry::new_null());
-        }
-
-        /// Installs the IDT.
-        pub fn install(&self) {
-            let idtr = IDTR::new(self);
-            let idtr_ptr = &idtr as *const IDTR as u64;
-            unsafe {
-                asm!(
-                    "lidt [rax]",
-                    in("rax")(idtr_ptr)
-                )
-            }
-        }
-
-        fn set_entry(&mut self, entry: u8, val: u64) {
-            let entry = &mut self.entries[entry as usize];
-            entry.offset_1 = val as u16;
-            entry.offset_2 = (val >> 16) as u16;
-            entry.offset_3 = (val >> 32) as u32;
-            entry.selector = gdt::KERNEL_CODE_SELECTOR;
-            entry.ist = 0;
-            entry.type_attributes = Attribute::Present as u8 | Attribute::IntGate32 as u8;
-            entry._zero = 0;
-        }
-
-        fn set_entry_from(&mut self, entry: u8, val: IDTEntry) {
-            let entry = &mut self.entries[entry as usize];
-            *entry = val;
+impl IDT {
+    const fn new() -> Self {
+        Self {
+            entries: [IDTEntry::new_null(); 256],
         }
     }
+}
+
+static mut IDT: IDT = IDT::new();
+
+/// Sets a descriptor in the IDT.
+pub unsafe fn set_descriptor(index: u8, interrupt_handler: unsafe extern "C" fn()) {
+    set_entry(index, interrupt_handler as u64);
+}
+
+/// Removes the descriptor from the table.
+pub unsafe fn remove_descriptor(index: u8) {
+    set_entry_from(index, IDTEntry::new_null());
+}
+
+/// Installs the IDT.
+pub unsafe fn install() {
+    let idtr = IDTR::new(&IDT);
+    let idtr_ptr = &idtr as *const IDTR as u64;
+    unsafe {
+        asm!(
+            "lidt [rax]",
+            in("rax")(idtr_ptr)
+        )
+    }
+}
+
+unsafe fn set_entry(entry: u8, val: u64) {
+    let entry = &mut IDT.entries[entry as usize];
+    entry.offset_1 = val as u16;
+    entry.offset_2 = (val >> 16) as u16;
+    entry.offset_3 = (val >> 32) as u32;
+    entry.selector = gdt::KERNEL_CODE_SELECTOR;
+    entry.ist = 0;
+    entry.type_attributes = Attribute::Present as u8 | Attribute::IntGate32 as u8;
+    entry._zero = 0;
+}
+
+unsafe fn set_entry_from(entry: u8, val: IDTEntry) {
+    let entry = &mut IDT.entries[entry as usize];
+    *entry = val;
 }
 
 static _ASSERT_ENTRY_SIZE: () = assert!(core::mem::size_of::<IDTEntry>() == 16);

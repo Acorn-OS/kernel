@@ -1,15 +1,18 @@
 #![no_std]
-#![allow(dead_code)]
+#![feature(int_roundings)]
+
+pub extern crate spin as spin;
 
 extern crate self as util;
 
 pub mod logging;
+pub mod math;
 
 #[macro_export]
 macro_rules! once {
     ($($tt:tt)*) => {
         {
-            static __ONCE__: ::spin::Once = ::spin::Once::new();
+            static __ONCE__: ::util::spin::Once = ::util::spin::Once::new();
             *__ONCE__.call_once(|| { $($tt)* })
         }
     };

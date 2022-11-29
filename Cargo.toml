@@ -1,36 +1,14 @@
-[package]
-name = "kernel"
-version = "0.1.0"
-edition = "2021"
-
 [workspace]
 members = [
-    "macros",
-    "macros/defs",
-    
+    "boot",
+    "kernel",
+    "mm",
     "util",
     
-    "hal",
+    "arch/*",
 
-    "arch/amd64",
+    "lib/*",
 ]
-
-[dependencies]
-cfg-if = "1.0.0"
-spin = "0.9.4"
-static_assertions = "1.1.0"
-
-[dependencies.proc-macro]
-path = "macros"
-
-[dependencies.util]
-path = "util"
-
-[dependencies.hal]
-path = "hal"
-
-[target.'cfg(target_arch = "x86_64")'.dependencies.amd64]
-path = "arch/amd64"
 
 [profile.dev]
 opt-level = 1

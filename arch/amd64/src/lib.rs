@@ -1,18 +1,13 @@
 #![no_std]
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate alloc;
-
-#[allow(unused_imports)]
-#[macro_use]
-extern crate static_assertions;
-
-#[allow(unused_imports)]
 #[macro_use]
 extern crate util;
 
+#[macro_use]
+extern crate static_assertions;
+
+extern crate alloc;
+
 pub mod chipset;
 pub mod cpu;
-
-mod hal;
+pub mod mm;

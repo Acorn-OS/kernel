@@ -1,7 +1,12 @@
 #![allow(unreachable_code)]
 
-pub use crate::{chipset::pic, cpu::idt};
-use core::fmt::Display;
+use crate::{
+    chipset,
+    cpu::{self, idt},
+};
+use core::{arch::global_asm, fmt::Display};
+
+global_asm!(include_str!("isr.s"));
 
 /// A stack frame for retaining register values
 /// throughout interrupts.
@@ -83,249 +88,358 @@ impl Display for StackFrame {
 }
 
 mod irq {
-    pub fn pit() {}
+    use super::StackFrame;
 
-    pub fn kbd() {
+    #[no_mangle]
+    pub extern "C" fn programmable_interrupt_timer(_stack_frame: *mut StackFrame) {}
+
+    #[no_mangle]
+    pub extern "C" fn keyboard(_stack_frame: *mut StackFrame) {
         panic!("kbd")
     }
 
-    pub fn cascade() {
+    #[no_mangle]
+    pub extern "C" fn cascade(_stack_frame: *mut StackFrame) {
         panic!("cascade")
     }
 
-    pub fn com2() {
+    #[no_mangle]
+    pub extern "C" fn com2(_stack_frame: *mut StackFrame) {
         panic!("com2")
     }
 
-    pub fn com1() {
+    #[no_mangle]
+    pub extern "C" fn com1(_stack_frame: *mut StackFrame) {
         panic!("com1")
     }
 
-    pub fn lpt2() {
+    #[no_mangle]
+    pub extern "C" fn lpt2(_stack_frame: *mut StackFrame) {
         panic!("lpt2")
     }
 
-    pub fn floppy() {
+    #[no_mangle]
+    pub extern "C" fn floppy_disk(_stack_frame: *mut StackFrame) {
         panic!("floppy")
     }
 
-    pub fn lpt1() {
+    #[no_mangle]
+    pub extern "C" fn lpt1(_stack_frame: *mut StackFrame) {
         panic!("lpt1")
     }
 
-    pub fn cmos_rtc() {
+    #[no_mangle]
+    pub extern "C" fn cmos_rtc(_stack_frame: *mut StackFrame) {
         panic!("cmos_rtc")
     }
 
-    pub fn free0() {
+    #[no_mangle]
+    pub extern "C" fn free0(_stack_frame: *mut StackFrame) {
         panic!("free0")
     }
 
-    pub fn free1() {
+    #[no_mangle]
+    pub extern "C" fn free1(_stack_frame: *mut StackFrame) {
         panic!("free1")
     }
 
-    pub fn free2() {
+    #[no_mangle]
+    pub extern "C" fn free2(_stack_frame: *mut StackFrame) {
         panic!("free2")
     }
 
-    pub fn mouse() {
+    #[no_mangle]
+    pub extern "C" fn ps2_mouse(_stack_frame: *mut StackFrame) {
         panic!("mouse")
     }
 
-    pub fn cp() {
+    #[no_mangle]
+    pub extern "C" fn coprocessor(_stack_frame: *mut StackFrame) {
         panic!("cp")
     }
 
-    pub fn primary_disk() {
+    #[no_mangle]
+    pub extern "C" fn primary_ata_disk(_stack_frame: *mut StackFrame) {
         panic!("primary disk")
     }
 
-    pub fn secondary_disk() {
+    #[no_mangle]
+    pub extern "C" fn secondary_ata_disk(_stack_frame: *mut StackFrame) {
         panic!("secondary_disk")
     }
 }
 
 mod exception {
-    pub fn pg_fault() {
-        panic!("pg_fault")
+    use super::StackFrame;
+
+    #[no_mangle]
+    pub extern "C" fn divide_by_zero(_stack_frame: *mut StackFrame) {
+        panic!("divide by zero")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn debug(_stack_frame: *mut StackFrame) {
+        panic!("debug")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn non_maskable_interrupt(_stack_frame: *mut StackFrame) {
+        panic!("non_maskable_interrupt")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn breakpoint(_stack_frame: *mut StackFrame) {
+        panic!("breakpoint")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn overflow(_stack_frame: *mut StackFrame) {
+        panic!("overflow")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn bound_range_exceeded(_stack_frame: *mut StackFrame) {
+        panic!("bound_range_exceeded")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn invalid_opcode(_stack_frame: *mut StackFrame) {
+        panic!("invalid_opcode")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn device_not_available(_stack_frame: *mut StackFrame) {
+        panic!("device_not_available")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn double_fault(_stack_frame: *mut StackFrame) {
+        panic!("double_fault")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn coprocessor_segment_overrun(_stack_frame: *mut StackFrame) {
+        panic!("coprocessor_segment_overrun")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn invalid_tss(_stack_frame: *mut StackFrame) {
+        panic!("invalid_tss")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn segment_not_present(_stack_frame: *mut StackFrame) {
+        panic!("segment_not_present")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn stack_segment_fault(_stack_frame: *mut StackFrame) {
+        panic!("stack_segment_fault")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn general_protection_fault(_stack_frame: *mut StackFrame) {
+        panic!("general_protection_fault")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn page_fault(_stack_frame: *mut StackFrame) {
+        panic!("page_fault")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reserved_15(_stack_frame: *mut StackFrame) {
+        panic!("reserved_15")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn floating_point_exception_x87(_stack_frame: *mut StackFrame) {
+        panic!("floating_point_exception_x87")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn alignent_check(_stack_frame: *mut StackFrame) {
+        panic!("alignent_check")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn machine_check(_stack_frame: *mut StackFrame) {
+        panic!("machine_check")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn floating_point_exception_simd(_stack_frame: *mut StackFrame) {
+        panic!("floating_point_exception_simd")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn virtualization_exception(_stack_frame: *mut StackFrame) {
+        panic!("virtualization_exception")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn control_protection_exception(_stack_frame: *mut StackFrame) {
+        panic!("control_protection_exception")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reserved_22(_stack_frame: *mut StackFrame) {
+        panic!("reserved_22")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reservec_23(_stack_frame: *mut StackFrame) {
+        panic!("reservec_23")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reserved_24(_stack_frame: *mut StackFrame) {
+        panic!("reserved_24")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reserved_25(_stack_frame: *mut StackFrame) {
+        panic!("reserved_25")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reserved_26(_stack_frame: *mut StackFrame) {
+        panic!("reserved_26")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reserved_27(_stack_frame: *mut StackFrame) {
+        panic!("reserved_27")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn hypervisor_injection_exception(_stack_frame: *mut StackFrame) {
+        panic!("hypervisor_injection_exception")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn vmm_communication_exception(_stack_frame: *mut StackFrame) {
+        panic!("vmm_communication_exception")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn security_exception(_stack_frame: *mut StackFrame) {
+        panic!("security_exception")
+    }
+
+    #[no_mangle]
+    pub extern "C" fn reserved_31(_stack_frame: *mut StackFrame) {
+        panic!("reserved_31")
     }
 }
 
-macro_rules! irqs {
-    ($($irq:ident : $id:literal => fn { $($stmt:stmt);* $(;)? };)*) => {
-        $(
-            proc_macro::x86_isr_def! { irq $irq : $id => __handle_irq_ : fn { $($stmt);* } }
-        )*
+extern "C" {
+    fn _irq_handler_0();
+    fn _irq_handler_1();
+    fn _irq_handler_2();
+    fn _irq_handler_3();
+    fn _irq_handler_4();
+    fn _irq_handler_5();
+    fn _irq_handler_6();
+    fn _irq_handler_7();
+    fn _irq_handler_8();
+    fn _irq_handler_9();
+    fn _irq_handler_10();
+    fn _irq_handler_11();
+    fn _irq_handler_12();
+    fn _irq_handler_13();
+    fn _irq_handler_14();
+    fn _irq_handler_15();
 
-        pub fn init_irqs(start_vec: u8){
-            $(
-                idt::set_descriptor(start_vec + $id, $irq);
-            )*
-        }
-    };
+    fn _except_handler_0();
+    fn _except_handler_1();
+    fn _except_handler_2();
+    fn _except_handler_3();
+    fn _except_handler_4();
+    fn _except_handler_5();
+    fn _except_handler_6();
+    fn _except_handler_7();
+    fn _except_handler_8();
+    fn _except_handler_9();
+    fn _except_handler_10();
+    fn _except_handler_11();
+    fn _except_handler_12();
+    fn _except_handler_13();
+    fn _except_handler_14();
+    fn _except_handler_15();
+    fn _except_handler_16();
+    fn _except_handler_17();
+    fn _except_handler_18();
+    fn _except_handler_19();
+    fn _except_handler_20();
+    fn _except_handler_21();
+    fn _except_handler_22();
+    fn _except_handler_23();
+    fn _except_handler_24();
+    fn _except_handler_25();
+    fn _except_handler_26();
+    fn _except_handler_27();
+    fn _except_handler_28();
+    fn _except_handler_29();
+    fn _except_handler_30();
+    fn _except_handler_31();
 }
 
-macro_rules! excepts {
-    ($($except:ident : $id:literal => fn { $($stmt:stmt);* $(;)? };)*) => {
-        $(
-            proc_macro::x86_isr_def! { except $except : $id => __handle_except_ : fn { $($stmt);* } }
-        )*
+const IRQ_START_VEC: u8 = 0x20;
+const EXCEPT_START_VEC: u8 = 0x00;
 
-        pub fn init_excepts(start_vec: u8){
-            $(
-                idt::set_descriptor(start_vec + $id, $except);
-            )*
-        }
-    };
-}
+pub unsafe fn init() {
+    idt::set_descriptor(IRQ_START_VEC + 0, _irq_handler_0);
+    idt::set_descriptor(IRQ_START_VEC + 1, _irq_handler_1);
+    idt::set_descriptor(IRQ_START_VEC + 2, _irq_handler_2);
+    idt::set_descriptor(IRQ_START_VEC + 3, _irq_handler_3);
+    idt::set_descriptor(IRQ_START_VEC + 4, _irq_handler_4);
+    idt::set_descriptor(IRQ_START_VEC + 5, _irq_handler_5);
+    idt::set_descriptor(IRQ_START_VEC + 6, _irq_handler_6);
+    idt::set_descriptor(IRQ_START_VEC + 7, _irq_handler_7);
+    idt::set_descriptor(IRQ_START_VEC + 8, _irq_handler_8);
+    idt::set_descriptor(IRQ_START_VEC + 9, _irq_handler_9);
+    idt::set_descriptor(IRQ_START_VEC + 10, _irq_handler_10);
+    idt::set_descriptor(IRQ_START_VEC + 11, _irq_handler_11);
+    idt::set_descriptor(IRQ_START_VEC + 12, _irq_handler_12);
+    idt::set_descriptor(IRQ_START_VEC + 13, _irq_handler_13);
+    idt::set_descriptor(IRQ_START_VEC + 14, _irq_handler_14);
+    idt::set_descriptor(IRQ_START_VEC + 15, _irq_handler_15);
 
-irqs! {
-    programmable_interrupt_timer : 0 => fn {
-        irq::pit();
-    };
-    keyboard : 1 => fn {
-        irq::kbd();
-    };
-    cascade : 2 => fn {
-        irq::cascade();
-    };
-    com2 : 3 => fn {
-        irq::com2();
-    };
-    com1 : 4 => fn {
-        irq::com1();
-    };
-    lpt2 : 5 => fn {
-        irq::lpt2();
-    };
-    floppy_disk : 6 => fn {
-        irq::floppy();
-    };
-    lpt1 : 7 => fn {
-        irq::lpt1();
-    };
-    cmos_rtc : 8 => fn{
-        irq::cmos_rtc();
-    };
-    free_for_peripherals0 : 9 => fn{
-        irq::free0();
-    };
-    free_for_peripherals1 : 10 => fn{
-        irq::free1();
-    };
-    free_for_peripherals2 : 11 => fn{
-        irq::free2();
-    };
-    ps2_mouse : 12 => fn{
-        irq::mouse();
-    };
-    coprocessor: 13 => fn{
-        irq::cp();
-    };
-    primary_ata_disk: 14 => fn{
-        irq::primary_disk();
-    };
-    secondary_ata_disk: 15 => fn{
-        irq::secondary_disk();
-    };
-}
+    idt::set_descriptor(EXCEPT_START_VEC + 0, _except_handler_0);
+    idt::set_descriptor(EXCEPT_START_VEC + 1, _except_handler_1);
+    idt::set_descriptor(EXCEPT_START_VEC + 2, _except_handler_2);
+    idt::set_descriptor(EXCEPT_START_VEC + 3, _except_handler_3);
+    idt::set_descriptor(EXCEPT_START_VEC + 4, _except_handler_4);
+    idt::set_descriptor(EXCEPT_START_VEC + 5, _except_handler_5);
+    idt::set_descriptor(EXCEPT_START_VEC + 6, _except_handler_6);
+    idt::set_descriptor(EXCEPT_START_VEC + 7, _except_handler_7);
+    idt::set_descriptor(EXCEPT_START_VEC + 8, _except_handler_8);
+    idt::set_descriptor(EXCEPT_START_VEC + 9, _except_handler_9);
+    idt::set_descriptor(EXCEPT_START_VEC + 10, _except_handler_10);
+    idt::set_descriptor(EXCEPT_START_VEC + 11, _except_handler_11);
+    idt::set_descriptor(EXCEPT_START_VEC + 12, _except_handler_12);
+    idt::set_descriptor(EXCEPT_START_VEC + 13, _except_handler_13);
+    idt::set_descriptor(EXCEPT_START_VEC + 14, _except_handler_14);
+    idt::set_descriptor(EXCEPT_START_VEC + 15, _except_handler_15);
+    idt::set_descriptor(EXCEPT_START_VEC + 16, _except_handler_16);
+    idt::set_descriptor(EXCEPT_START_VEC + 17, _except_handler_17);
+    idt::set_descriptor(EXCEPT_START_VEC + 18, _except_handler_18);
+    idt::set_descriptor(EXCEPT_START_VEC + 19, _except_handler_19);
+    idt::set_descriptor(EXCEPT_START_VEC + 20, _except_handler_20);
+    idt::set_descriptor(EXCEPT_START_VEC + 21, _except_handler_21);
+    idt::set_descriptor(EXCEPT_START_VEC + 22, _except_handler_22);
+    idt::set_descriptor(EXCEPT_START_VEC + 23, _except_handler_23);
+    idt::set_descriptor(EXCEPT_START_VEC + 24, _except_handler_24);
+    idt::set_descriptor(EXCEPT_START_VEC + 25, _except_handler_25);
+    idt::set_descriptor(EXCEPT_START_VEC + 26, _except_handler_26);
+    idt::set_descriptor(EXCEPT_START_VEC + 27, _except_handler_27);
+    idt::set_descriptor(EXCEPT_START_VEC + 28, _except_handler_28);
+    idt::set_descriptor(EXCEPT_START_VEC + 29, _except_handler_29);
+    idt::set_descriptor(EXCEPT_START_VEC + 30, _except_handler_30);
+    idt::set_descriptor(EXCEPT_START_VEC + 31, _except_handler_31);
 
-excepts! {
-    divide_by_zero : 0 => fn{
-        panic!("divide by zero")
-    };
-    debug : 1 => fn{
-        panic!("debug")
-    };
-    non_maskable_interrupt : 2 => fn{
-        panic!("non maskable interrupt")
-    };
-    breakpoint : 3 => fn{
-        panic!("breakpoint")
-    };
-    overflow : 4 => fn{
-        panic!("overflow")
-    };
-    bound_range_exceeded : 5 => fn{
-        panic!("bound range exceeded")
-    };
-    invalid_opcode : 6 => fn{
-        panic!("invalid opcode")
-    };
-    device_not_available : 7 => fn{
-        panic!("device not available")
-    };
-    double_fault : 8 => fn{
-        panic!("double fault")
-    };
-    coprocessor_segment_overrun : 9 => fn{
-        panic!("coprocessor segment overrun")
-    };
-    invalid_tss : 10 => fn{
-        panic!("invalid tss")
-    };
-    segment_not_present : 11 => fn{
-        panic!("segment not present")
-    };
-    stack_segment_fault : 12 => fn{
-        panic!("stack segment fault")
-    };
-    general_protection_fault : 13 => fn{
-        panic!("general protection fault")
-    };
-    page_fault : 14 => fn{
-        exception::pg_fault();
-    };
-    reserved_15 : 15 => fn{
-        panic!("reserved 0xF")
-    };
-    floating_point_exception_x87 : 16 => fn{
-        panic!("x87 floating-point exception")
-    };
-    alignent_check : 17 => fn{
-        panic!("alignment check")
-    };
-    machine_check : 18 => fn{
-        panic!("machine check")
-    };
-    floating_point_exception_simd : 19 => fn{
-        panic!("simd floating-point exception")
-    };
-    virtualization_exception : 20 => fn{
-        panic!("virtualization exception")
-    };
-    control_protection_exception : 21 => fn{
-        panic!("control protection exception")
-    };
-    reserved_22 : 22 => fn{
-        panic!("reserved 0x16");
-    };
-    reservec_23 : 23 => fn{
-        panic!("reserved 0x17");
-    };
-    reserved_24 : 24 => fn{
-        panic!("reserved 0x18");
-    };
-    reserved_25 : 25 => fn{
-        panic!("reserved 0x19");
-    };
-    reserved_26 : 26 => fn{
-        panic!("reserved 0x1A");
-    };
-    reserved_27 : 27 => fn{
-        panic!("reserved 0x1B");
-    };
-    hypervisor_injection_exception : 28 => fn{
-        panic!("hypervisor injection exception")
-    };
-    vmm_communication_exception : 29 => fn{
-        panic!("vmm communication exception")
-    };
-    security_exception : 30 => fn{
-        panic!("security exception")
-    };
-    reserved_31 : 31 => fn{
-        panic!("reserved 0x1F")
-    };
+    chipset::pic::remap(IRQ_START_VEC, IRQ_START_VEC + 8);
+    chipset::pic::enable_all();
+    cpu::idt::install();
 }

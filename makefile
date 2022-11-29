@@ -1,4 +1,4 @@
-DEBUG_OUT 	= target/amd64/debug/kernel
+DEBUG_OUT 	= target/amd64/debug/acorn
 SRC_ROOT 	= $(abspath .)
 BLOCK_SIZE 	= 4096
 

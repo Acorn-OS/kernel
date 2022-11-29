@@ -8,6 +8,7 @@ struct Entry {
     base_hi: u8,
 }
 
+#[allow(dead_code)]
 impl Entry {
     const fn new_null() -> Self {
         Self {
@@ -60,41 +61,48 @@ pub const USRSPC_CODE_SELECTOR: u16 = ENTRY_SIZE * 3;
 #[allow(missing_docs)]
 pub const USRSPC_DATA_SELECTOR: u16 = ENTRY_SIZE * 4;
 
-proc_macro::idef! {
-    static GDT = {
-        entries: [Entry; 5] = [
-            // null entry
-            Entry::new_null(),
-            // kernel code
-            Entry::new_null()
-                .set_limit(0x0)
-                .set_access_byte(0x9A)
-                .set_flags(0xA)
-                .set_base(0),
-            // kernel data
-            Entry::new_null()
-                .set_limit(0x0)
-                .set_access_byte(0x92)
-                .set_flags(0xC)
-                .set_base(0),
-            // userspace code
-            Entry::new_null()
-                .set_limit(0x0)
-                .set_access_byte(0xFA)
-                .set_flags(0xA)
-                .set_base(0),
-            // userspace data
-            Entry::new_null()
-                .set_limit(0x0)
-                .set_access_byte(0xF2)
-                .set_flags(0xC)
-                .set_base(0),
-        ],
-    }
-    impl {
-        /// Reapplies the GDT.
-        pub fn apply_table(&self){
-            todo!()
+#[allow(dead_code)]
+struct GDT {
+    entries: [Entry; 5],
+}
+
+#[allow(dead_code)]
+impl GDT {
+    fn new() -> Self {
+        Self {
+            entries: [
+                // null entry
+                Entry::new_null(),
+                // kernel code
+                Entry::new_null()
+                    .set_limit(0x0)
+                    .set_access_byte(0x9A)
+                    .set_flags(0xA)
+                    .set_base(0),
+                // kernel data
+                Entry::new_null()
+                    .set_limit(0x0)
+                    .set_access_byte(0x92)
+                    .set_flags(0xC)
+                    .set_base(0),
+                // userspace code
+                Entry::new_null()
+                    .set_limit(0x0)
+                    .set_access_byte(0xFA)
+                    .set_flags(0xA)
+                    .set_base(0),
+                // userspace data
+                Entry::new_null()
+                    .set_limit(0x0)
+                    .set_access_byte(0xF2)
+                    .set_flags(0xC)
+                    .set_base(0),
+            ],
         }
     }
+}
+
+/// Reapplies the GDT.
+pub fn apply_table() {
+    todo!()
 }
