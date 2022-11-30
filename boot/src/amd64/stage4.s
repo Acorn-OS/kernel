@@ -10,14 +10,14 @@ stage4:
     mov gs, bx 
 
     # clear the bss section for the kernel code.
-    mov rdi, offset bss_start
-    mov rcx, offset bss_end
+    mov rdi, offset __bss_start
+    mov rcx, offset __bss_end
     sub rcx, rdi
     xor eax, eax
     rep stosb
 
     # Set new stack for long mode. 
-    mov rsp, offset kernel_stack_top
+    mov rsp, offset __kernel_stack_top
 
     # Make sure interrupts are disabled.
     cli 

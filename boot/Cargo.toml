@@ -7,8 +7,8 @@ edition = "2021"
 name = "acorn"
 path = "src/main.rs"
 
-[dependencies.amd64]
-path = "../arch/amd64"
+[dependencies.arch]
+path = "../arch"
 
 [dependencies.mm]
 path = "../mm"

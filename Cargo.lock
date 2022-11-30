@@ -3,11 +3,11 @@
 version = 3
 
 [[package]]
-name = "amd64"
+name = "arch"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
- "libmm",
+ "mm",
  "static_assertions",
  "util",
 ]
@@ -22,7 +22,7 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 name = "boot"
 version = "0.1.0"
 dependencies = [
- "amd64",
+ "arch",
  "kernel",
  "mm",
  "util",
@@ -42,36 +42,6 @@ dependencies = [
  "spin",
  "static_assertions",
  "util",
-]
-
-[[package]]
-name = "lazy_static"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-
-[[package]]
-name = "libio"
-version = "0.1.0"
-dependencies = [
- "link",
-]
-
-[[package]]
-name = "libmm"
-version = "0.1.0"
-dependencies = [
- "link",
-]
-
-[[package]]
-name = "link"
-version = "0.1.0"
-dependencies = [
- "lazy_static",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -98,27 +68,8 @@ name = "mm"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
- "libmm",
  "static_assertions",
  "util",
-]
-
-[[package]]
-name = "proc-macro2"
-version = "1.0.47"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ea3d908b0e36316caf9e9e2c4625cdde190a7e6f440d794667ed17a1855e725"
-dependencies = [
- "unicode-ident",
-]
-
-[[package]]
-name = "quote"
-version = "1.0.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbe448f377a7d6961e30f5955f9b8d106c3f5e449d493ee1b125c1d43c2b5179"
-dependencies = [
- "proc-macro2",
 ]
 
 [[package]]
@@ -141,23 +92,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "syn"
-version = "1.0.104"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ae548ec36cf198c0ef7710d3c230987c2d6d7bd98ad6edc0274462724c585ce"
-dependencies = [
- "proc-macro2",
- "quote",
- "unicode-ident",
-]
-
-[[package]]
-name = "unicode-ident"
-version = "1.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ceab39d59e4c9499d4e5a8ee0e2735b891bb7308ac83dfb4e80cad195c9f6f3"
 
 [[package]]
 name = "util"

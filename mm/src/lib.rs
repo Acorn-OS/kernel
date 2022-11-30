@@ -7,7 +7,7 @@ extern crate static_assertions;
 #[macro_use]
 extern crate util;
 
-pub mod malloc;
+pub mod alloc;
 pub mod mmap;
-pub mod paging;
+pub mod segments;
 pub mod vm;

@@ -97,7 +97,7 @@ impl PageSize {
     }
 }
 
-pub unsafe fn install() {
+unsafe fn install() {
     let adr = get_base() as *const _ as u64;
     asm!(
         "mov cr3, rax",
@@ -106,7 +106,26 @@ pub unsafe fn install() {
     );
 }
 
-pub fn map(virt: RangeInclusive<usize>, phys: usize, size: PageSize) {
+fn get_base() -> &'static mut PageDirectory {
+    unsafe { &mut *(&__base_page_table as *const _ as *mut PageDirectory) }
+}
+
+extern "C" {
+    static __base_page_table: u8;
+
+    static __kvma_beg: u8;
+    static __kvma_end: u8;
+}
+
+pub extern "C" fn kvma_start() -> usize {
+    unsafe { &__kvma_beg as *const _ as usize }
+}
+
+pub extern "C" fn kvma_end() -> usize {
+    unsafe { &__kvma_end as *const _ as usize }
+}
+
+pub fn map(virt: RangeInclusive<usize>, phys: usize, size: PageSize) -> usize {
     let mask = size.mask();
     let mut phys = phys & !mask;
     let vstart = *virt.start() & !mask;
@@ -144,6 +163,8 @@ pub fn map(virt: RangeInclusive<usize>, phys: usize, size: PageSize) {
     indexes!(p1_s, p1_e, 1);
     indexes!(p0_s, p0_e, 0);
 
+    let mut mapped_cnt = 0;
+
     match size {
         PageSize::Normal => {
             let start = p0_s | (p1_s << 9) | (p2_s << 18) | (p3_s << 27);
@@ -164,6 +185,7 @@ pub fn map(virt: RangeInclusive<usize>, phys: usize, size: PageSize) {
                 entry.enable_rwp();
                 entry.set_adr_space((phys & !size.mask()) as u64);
                 phys += size.value();
+                mapped_cnt += 1;
             }
         }
         PageSize::Large => {
@@ -184,6 +206,7 @@ pub fn map(virt: RangeInclusive<usize>, phys: usize, size: PageSize) {
                 entry.set_size_bit(true);
                 entry.set_adr_space((phys & !size.mask()) as u64);
                 phys += size.value();
+                mapped_cnt += 1;
             }
         }
         PageSize::Huge => {
@@ -202,25 +225,17 @@ pub fn map(virt: RangeInclusive<usize>, phys: usize, size: PageSize) {
                 entry.set_size_bit(true);
                 entry.set_adr_space((phys & !size.mask()) as u64);
                 phys += size.value();
+                mapped_cnt += 1;
             }
         }
     }
+    mapped_cnt
 }
 
-#[inline(always)]
-pub fn unmap() {
+pub fn unmap() -> usize {
     unimplemented!()
 }
 
-#[inline(always)]
 pub fn is_mapped() -> bool {
     unimplemented!()
-}
-
-extern "C" {
-    static base_page_table: u8;
-}
-
-fn get_base() -> &'static mut PageDirectory {
-    unsafe { &mut *(&base_page_table as *const _ as *mut PageDirectory) }
 }

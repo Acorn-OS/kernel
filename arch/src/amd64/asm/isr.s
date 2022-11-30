@@ -1,3 +1,5 @@
+.code64
+
 .macro irq handler index
 .align 8
 .global _irq_handler_\index 

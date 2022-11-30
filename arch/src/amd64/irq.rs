@@ -1,12 +1,219 @@
-#![allow(unreachable_code)]
-
-use crate::{
-    chipset,
-    cpu::{self, idt},
+use crate::amd64::{
+    io::{in8_delay, out8_delay},
+    segments,
 };
+use core::arch::asm;
 use core::{arch::global_asm, fmt::Display};
 
-global_asm!(include_str!("isr.s"));
+const PIC1_BASE: u16 = 0x20;
+const PIC2_BASE: u16 = 0xA0;
+
+const COMMAND_OFFSET: u16 = 0;
+const DATA_OFFSET: u16 = 1;
+
+/// Different commands to send to the PIC.
+mod cmd {
+    /// End of interrupt command.
+    pub const EOI: u8 = 0x20;
+    /// TODO:
+    pub const ICW1_INIT: u8 = 0x10;
+    /// TODO:
+    pub const ICW4_8086: u8 = 0x01;
+}
+
+struct Pic {
+    base: u16,
+    cascade_ident: u8,
+}
+
+impl Pic {
+    fn remap(&self, start_vec: u8) {
+        let mask = self.data_in();
+        self.command(cmd::ICW1_INIT);
+        self.data_out(start_vec);
+        self.data_out(self.cascade_ident);
+        self.data_out(cmd::ICW4_8086);
+        self.data_out(mask);
+    }
+
+    #[inline]
+    fn command(&self, cmd: u8) {
+        out8_delay(self.base + COMMAND_OFFSET, cmd);
+    }
+
+    #[inline]
+    fn data_out(&self, out: u8) {
+        out8_delay(self.base + DATA_OFFSET, out);
+    }
+
+    #[inline]
+    fn data_in(&self) -> u8 {
+        in8_delay(self.base + DATA_OFFSET)
+    }
+}
+
+static PIC1: Pic = Pic {
+    base: PIC1_BASE,
+    cascade_ident: 4,
+};
+static PIC2: Pic = Pic {
+    base: PIC2_BASE,
+    cascade_ident: 2,
+};
+
+/// Remaps both the PIC1 and PIC2.
+fn pic_remap(pic1_vec: u8, pic2_vec: u8) {
+    pic1::remap(pic1_vec);
+    pic2::remap(pic2_vec);
+}
+
+macro_rules! impl_pic {
+    ($ident:ident) => {
+        use super::*;
+
+        /// Remaps the PIC from the starting vector.
+        pub fn remap(start_vec: u8) {
+            $ident.remap(start_vec);
+        }
+
+        /// Masks the PIC.
+        pub fn mask(mask: u8) {
+            $ident.data_out(mask);
+        }
+
+        /// Sends a command to the PIC.
+        pub fn cmd(cmd: u8) {
+            $ident.command(cmd);
+        }
+
+        /// Signals the end of an interrupt for the PIC.
+        pub fn end_of_interrupt() {
+            cmd(cmd::EOI)
+        }
+
+        /// Enable all interrupts.
+        pub fn enable_all() {
+            mask(0);
+        }
+
+        /// Disable all interrupts.
+        pub fn disable_all() {
+            mask(0xFF);
+        }
+    };
+}
+
+/// Operate on PIC1.
+mod pic1 {
+    impl_pic!(PIC1);
+}
+
+/// Operator on PIC2.
+mod pic2 {
+    impl_pic!(PIC2);
+}
+
+#[allow(dead_code)]
+#[repr(u8)]
+enum Attribute {
+    TaskGate = 0b0101,
+    TrapGate16 = 0b0111,
+    TrapGate32 = 0b1111,
+    IntGate16 = 0b0110,
+    IntGate32 = 0b1110,
+    DPL0 = 0,
+    DPL1 = 0b01_00000,
+    DPL2 = 0b10_00000,
+    DPL3 = 0b11_00000,
+    Present = 0b1000_0000,
+}
+
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+struct IDTEntry {
+    offset_1: u16,
+    selector: u16,
+    ist: u8,
+    type_attributes: u8,
+    offset_2: u16,
+    offset_3: u32,
+    _zero: u32,
+}
+
+impl IDTEntry {
+    const fn new_null() -> Self {
+        Self {
+            offset_1: 0,
+            selector: 0,
+            ist: 0,
+            type_attributes: 0,
+            offset_2: 0,
+            offset_3: 0,
+            _zero: 0,
+        }
+    }
+}
+
+#[repr(C, packed)]
+struct IDTR {
+    size: u16,
+    paged_offset: u64,
+}
+
+impl IDTR {
+    fn new(idt: &IDT) -> Self {
+        Self {
+            size: core::mem::size_of::<IDT>() as u16,
+            paged_offset: idt as *const _ as u64,
+        }
+    }
+}
+
+struct IDT {
+    entries: [IDTEntry; 256],
+}
+
+impl IDT {
+    const fn new() -> Self {
+        Self {
+            entries: [IDTEntry::new_null(); 256],
+        }
+    }
+}
+
+static mut IDT: IDT = IDT::new();
+
+/// Sets a descriptor in the IDT.
+unsafe fn idt_set_descriptor(index: u8, interrupt_handler: unsafe extern "C" fn()) {
+    idt_set_entry(index, interrupt_handler as u64);
+}
+
+/// Installs the IDT.
+unsafe fn idt_install() {
+    let idtr = IDTR::new(&IDT);
+    let idtr_ptr = &idtr as *const IDTR as u64;
+    unsafe {
+        asm!(
+            "lidt [rax]",
+            in("rax")(idtr_ptr)
+        )
+    }
+}
+
+unsafe fn idt_set_entry(entry: u8, val: u64) {
+    let entry = &mut IDT.entries[entry as usize];
+    entry.offset_1 = val as u16;
+    entry.offset_2 = (val >> 16) as u16;
+    entry.offset_3 = (val >> 32) as u32;
+    entry.selector = segments::KERNEL_CODE_SELECTOR;
+    entry.ist = 0;
+    entry.type_attributes = Attribute::Present as u8 | Attribute::IntGate32 as u8;
+    entry._zero = 0;
+}
+
+static _ASSERT_ENTRY_SIZE: () = assert!(core::mem::size_of::<IDTEntry>() == 16);
+static _ASSERT_IDT_SIZE: () = assert!(core::mem::size_of::<IDT>() == 16 * 256);
+static _ASSERT_IDR_SIZE: () = assert!(core::mem::size_of::<IDTR>() == 10);
 
 /// A stack frame for retaining register values
 /// throughout interrupts.
@@ -87,11 +294,22 @@ impl Display for StackFrame {
     }
 }
 
+/// Signals the end of an interrupt for both PICs.
+/// This is preferable over signaling to indiviual
+/// PICs.
+#[inline]
+fn end_of_interrupt() {
+    pic1::end_of_interrupt();
+    pic2::end_of_interrupt();
+}
+
 mod irq {
-    use super::StackFrame;
+    use super::{end_of_interrupt, StackFrame};
 
     #[no_mangle]
-    pub extern "C" fn programmable_interrupt_timer(_stack_frame: *mut StackFrame) {}
+    pub extern "C" fn programmable_interrupt_timer(_stack_frame: *mut StackFrame) {
+        end_of_interrupt();
+    }
 
     #[no_mangle]
     pub extern "C" fn keyboard(_stack_frame: *mut StackFrame) {
@@ -333,6 +551,8 @@ mod exception {
     }
 }
 
+global_asm!(include_str!("asm/isr.s"));
+
 extern "C" {
     fn _irq_handler_0();
     fn _irq_handler_1();
@@ -388,58 +608,78 @@ extern "C" {
 const IRQ_START_VEC: u8 = 0x20;
 const EXCEPT_START_VEC: u8 = 0x00;
 
+/// Disables interrupts for both PIC1 and PIC2.
+pub fn irq_di_all() {
+    pic1::disable_all();
+    pic2::disable_all();
+}
+
+/// Enables interrupts for both PIC1 and PIC2.
+pub fn irq_en_all() {
+    pic1::enable_all();
+    pic2::enable_all();
+}
+
+pub fn irq_en(_irq: crate::irq::IRQ) {}
+
+pub fn irq_di(_irq: crate::irq::IRQ) {}
+
+pub fn irq_is_en(_irq: crate::irq::IRQ) -> bool {
+    false
+}
+
 pub unsafe fn init() {
-    idt::set_descriptor(IRQ_START_VEC + 0, _irq_handler_0);
-    idt::set_descriptor(IRQ_START_VEC + 1, _irq_handler_1);
-    idt::set_descriptor(IRQ_START_VEC + 2, _irq_handler_2);
-    idt::set_descriptor(IRQ_START_VEC + 3, _irq_handler_3);
-    idt::set_descriptor(IRQ_START_VEC + 4, _irq_handler_4);
-    idt::set_descriptor(IRQ_START_VEC + 5, _irq_handler_5);
-    idt::set_descriptor(IRQ_START_VEC + 6, _irq_handler_6);
-    idt::set_descriptor(IRQ_START_VEC + 7, _irq_handler_7);
-    idt::set_descriptor(IRQ_START_VEC + 8, _irq_handler_8);
-    idt::set_descriptor(IRQ_START_VEC + 9, _irq_handler_9);
-    idt::set_descriptor(IRQ_START_VEC + 10, _irq_handler_10);
-    idt::set_descriptor(IRQ_START_VEC + 11, _irq_handler_11);
-    idt::set_descriptor(IRQ_START_VEC + 12, _irq_handler_12);
-    idt::set_descriptor(IRQ_START_VEC + 13, _irq_handler_13);
-    idt::set_descriptor(IRQ_START_VEC + 14, _irq_handler_14);
-    idt::set_descriptor(IRQ_START_VEC + 15, _irq_handler_15);
+    idt_set_descriptor(IRQ_START_VEC + 0, _irq_handler_0);
+    idt_set_descriptor(IRQ_START_VEC + 1, _irq_handler_1);
+    idt_set_descriptor(IRQ_START_VEC + 2, _irq_handler_2);
+    idt_set_descriptor(IRQ_START_VEC + 3, _irq_handler_3);
+    idt_set_descriptor(IRQ_START_VEC + 4, _irq_handler_4);
+    idt_set_descriptor(IRQ_START_VEC + 5, _irq_handler_5);
+    idt_set_descriptor(IRQ_START_VEC + 6, _irq_handler_6);
+    idt_set_descriptor(IRQ_START_VEC + 7, _irq_handler_7);
+    idt_set_descriptor(IRQ_START_VEC + 8, _irq_handler_8);
+    idt_set_descriptor(IRQ_START_VEC + 9, _irq_handler_9);
+    idt_set_descriptor(IRQ_START_VEC + 10, _irq_handler_10);
+    idt_set_descriptor(IRQ_START_VEC + 11, _irq_handler_11);
+    idt_set_descriptor(IRQ_START_VEC + 12, _irq_handler_12);
+    idt_set_descriptor(IRQ_START_VEC + 13, _irq_handler_13);
+    idt_set_descriptor(IRQ_START_VEC + 14, _irq_handler_14);
+    idt_set_descriptor(IRQ_START_VEC + 15, _irq_handler_15);
 
-    idt::set_descriptor(EXCEPT_START_VEC + 0, _except_handler_0);
-    idt::set_descriptor(EXCEPT_START_VEC + 1, _except_handler_1);
-    idt::set_descriptor(EXCEPT_START_VEC + 2, _except_handler_2);
-    idt::set_descriptor(EXCEPT_START_VEC + 3, _except_handler_3);
-    idt::set_descriptor(EXCEPT_START_VEC + 4, _except_handler_4);
-    idt::set_descriptor(EXCEPT_START_VEC + 5, _except_handler_5);
-    idt::set_descriptor(EXCEPT_START_VEC + 6, _except_handler_6);
-    idt::set_descriptor(EXCEPT_START_VEC + 7, _except_handler_7);
-    idt::set_descriptor(EXCEPT_START_VEC + 8, _except_handler_8);
-    idt::set_descriptor(EXCEPT_START_VEC + 9, _except_handler_9);
-    idt::set_descriptor(EXCEPT_START_VEC + 10, _except_handler_10);
-    idt::set_descriptor(EXCEPT_START_VEC + 11, _except_handler_11);
-    idt::set_descriptor(EXCEPT_START_VEC + 12, _except_handler_12);
-    idt::set_descriptor(EXCEPT_START_VEC + 13, _except_handler_13);
-    idt::set_descriptor(EXCEPT_START_VEC + 14, _except_handler_14);
-    idt::set_descriptor(EXCEPT_START_VEC + 15, _except_handler_15);
-    idt::set_descriptor(EXCEPT_START_VEC + 16, _except_handler_16);
-    idt::set_descriptor(EXCEPT_START_VEC + 17, _except_handler_17);
-    idt::set_descriptor(EXCEPT_START_VEC + 18, _except_handler_18);
-    idt::set_descriptor(EXCEPT_START_VEC + 19, _except_handler_19);
-    idt::set_descriptor(EXCEPT_START_VEC + 20, _except_handler_20);
-    idt::set_descriptor(EXCEPT_START_VEC + 21, _except_handler_21);
-    idt::set_descriptor(EXCEPT_START_VEC + 22, _except_handler_22);
-    idt::set_descriptor(EXCEPT_START_VEC + 23, _except_handler_23);
-    idt::set_descriptor(EXCEPT_START_VEC + 24, _except_handler_24);
-    idt::set_descriptor(EXCEPT_START_VEC + 25, _except_handler_25);
-    idt::set_descriptor(EXCEPT_START_VEC + 26, _except_handler_26);
-    idt::set_descriptor(EXCEPT_START_VEC + 27, _except_handler_27);
-    idt::set_descriptor(EXCEPT_START_VEC + 28, _except_handler_28);
-    idt::set_descriptor(EXCEPT_START_VEC + 29, _except_handler_29);
-    idt::set_descriptor(EXCEPT_START_VEC + 30, _except_handler_30);
-    idt::set_descriptor(EXCEPT_START_VEC + 31, _except_handler_31);
+    idt_set_descriptor(EXCEPT_START_VEC + 0, _except_handler_0);
+    idt_set_descriptor(EXCEPT_START_VEC + 1, _except_handler_1);
+    idt_set_descriptor(EXCEPT_START_VEC + 2, _except_handler_2);
+    idt_set_descriptor(EXCEPT_START_VEC + 3, _except_handler_3);
+    idt_set_descriptor(EXCEPT_START_VEC + 4, _except_handler_4);
+    idt_set_descriptor(EXCEPT_START_VEC + 5, _except_handler_5);
+    idt_set_descriptor(EXCEPT_START_VEC + 6, _except_handler_6);
+    idt_set_descriptor(EXCEPT_START_VEC + 7, _except_handler_7);
+    idt_set_descriptor(EXCEPT_START_VEC + 8, _except_handler_8);
+    idt_set_descriptor(EXCEPT_START_VEC + 9, _except_handler_9);
+    idt_set_descriptor(EXCEPT_START_VEC + 10, _except_handler_10);
+    idt_set_descriptor(EXCEPT_START_VEC + 11, _except_handler_11);
+    idt_set_descriptor(EXCEPT_START_VEC + 12, _except_handler_12);
+    idt_set_descriptor(EXCEPT_START_VEC + 13, _except_handler_13);
+    idt_set_descriptor(EXCEPT_START_VEC + 14, _except_handler_14);
+    idt_set_descriptor(EXCEPT_START_VEC + 15, _except_handler_15);
+    idt_set_descriptor(EXCEPT_START_VEC + 16, _except_handler_16);
+    idt_set_descriptor(EXCEPT_START_VEC + 17, _except_handler_17);
+    idt_set_descriptor(EXCEPT_START_VEC + 18, _except_handler_18);
+    idt_set_descriptor(EXCEPT_START_VEC + 19, _except_handler_19);
+    idt_set_descriptor(EXCEPT_START_VEC + 20, _except_handler_20);
+    idt_set_descriptor(EXCEPT_START_VEC + 21, _except_handler_21);
+    idt_set_descriptor(EXCEPT_START_VEC + 22, _except_handler_22);
+    idt_set_descriptor(EXCEPT_START_VEC + 23, _except_handler_23);
+    idt_set_descriptor(EXCEPT_START_VEC + 24, _except_handler_24);
+    idt_set_descriptor(EXCEPT_START_VEC + 25, _except_handler_25);
+    idt_set_descriptor(EXCEPT_START_VEC + 26, _except_handler_26);
+    idt_set_descriptor(EXCEPT_START_VEC + 27, _except_handler_27);
+    idt_set_descriptor(EXCEPT_START_VEC + 28, _except_handler_28);
+    idt_set_descriptor(EXCEPT_START_VEC + 29, _except_handler_29);
+    idt_set_descriptor(EXCEPT_START_VEC + 30, _except_handler_30);
+    idt_set_descriptor(EXCEPT_START_VEC + 31, _except_handler_31);
 
-    chipset::pic::remap(IRQ_START_VEC, IRQ_START_VEC + 8);
-    chipset::pic::enable_all();
-    cpu::idt::install();
+    pic_remap(IRQ_START_VEC, IRQ_START_VEC + 8);
+    irq_di_all();
+    idt_install();
 }

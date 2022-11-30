@@ -13,9 +13,9 @@ stage2:
     # TODO!
 
     # Loads the kernel into memory
-    mov edi, offset kernel_load_adr # Address to load into.
-    mov esi, offset kernel_rom_adr  # LBA address to load from.
-    mov ecx, offset kernel_size     # Amount of sectors to load.
+    mov edi, offset __kernel_load_adr # Address to load into.
+    mov esi, offset __kernel_rom_adr  # LBA address to load from.
+    mov ecx, offset __kernel_size     # Amount of sectors to load.
     shr esi, 9
     shr ecx, 9
     call load_from_disk
@@ -38,7 +38,6 @@ stage2:
     mov ds, bx 
     mov ss, bx 
     mov es, bx 
-    mov gs, bx 
 
     # Make a far return to enter into PM at stage3 address.
     mov eax, offset stage3

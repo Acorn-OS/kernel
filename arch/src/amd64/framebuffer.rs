@@ -9,7 +9,7 @@ static mut Y: usize = 0;
 
 #[derive(Clone, Copy)]
 pub struct Color(u8);
-static_assertions::assert_eq_size!(Color, u8);
+assert_eq_size!(Color, u8);
 
 impl Color {
     pub const BLACK: Self = Color(0);
@@ -19,7 +19,7 @@ impl Color {
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 struct Pixel(u8, Color);
-static_assertions::assert_eq_size!(Pixel, u16);
+assert_eq_size!(Pixel, u16);
 
 #[inline(always)]
 unsafe fn newline() {

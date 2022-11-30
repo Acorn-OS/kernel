@@ -7,8 +7,8 @@ stage3:
 
     # Clear bss section for the boot code.
     xor eax, eax
-    mov esi, offset boot_bss_start
-    mov ecx, offset boot_bss_end
+    mov esi, offset __boot_bss_start
+    mov ecx, offset __boot_bss_end
     sub ecx, esi
     rep stosb
 
@@ -74,6 +74,12 @@ enter_stage4:
     mov eax, cr0
     or eax, (1 << 31)
     mov cr0, eax
+
+    # Set segment registers for LM.
+    mov bx, 0x10 
+    mov ds, bx 
+    mov ss, bx 
+    mov es, bx 
 
     # Enter long mode.
     lgdt [gdt64_ptr]

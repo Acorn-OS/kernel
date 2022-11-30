@@ -68,9 +68,9 @@ _start:
     # Load the rest of the bootstrap code into memory.
     # The bootstrap code is only a part of the bootloader itself.
     # Later stages will load the rest of the bootloader.
-    mov si, offset bootstrap_load_adr
+    mov si, offset __bootstrap_load_adr
     mov lba_load_buffer, si
-    mov si, offset bootstrap_load_size
+    mov si, offset __bootstrap_load_size
     shr si, 9
     mov lba_packet_size, si 
 

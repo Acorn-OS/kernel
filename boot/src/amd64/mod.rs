@@ -1,5 +1,3 @@
-use amd64::{chipset, cpu};
-use chipset::fb;
 use core::arch::global_asm;
 use mm::vm;
 use util::info;
@@ -14,12 +12,12 @@ global_asm!(include_str!("paging.s"));
 global_asm!(include_str!("disk.s"));
 
 fn serial_log(str: &str) {
-    chipset::com::puts(str);
+    amd64::serial::puts(str);
 }
 
 fn fb_log(str: &str) {
     unsafe {
-        fb::puts(str, fb::Color::WHITE);
+        amd64::framebuffer::puts(str, amd64::framebuffer::Color::WHITE);
     }
 }
 
@@ -27,22 +25,23 @@ fn fb_log(str: &str) {
 unsafe extern "C" fn __rust_entry() -> ! {
     util::di();
 
-    chipset::com::init();
+    amd64::serial::init();
 
     kernel::klog::configure(serial_log, fb_log);
     kernel::klog::init();
 
-    mm::malloc::init();
+    mm::alloc::init();
 
-    fb::clear();
-
-    cpu::isr::init();
+    amd64::segments::init();
+    amd64::irq::init();
+    amd64::framebuffer::clear();
 
     info!(
         "mapping kernel into virtual address [0x{:016X}, 0x{:016X}]",
         vm::kvma_start(),
         vm::kvma_end()
     );
+
     // Remap kernel into virtual memory.
     amd64::mm::paging::map(
         vm::kvma_start()..=vm::kvma_end(),

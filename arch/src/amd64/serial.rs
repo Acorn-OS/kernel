@@ -1,4 +1,4 @@
-use crate::cpu::io::{in8, out8};
+use crate::amd64::io::{in8, out8};
 
 struct COM(u16);
 
