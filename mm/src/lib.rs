@@ -9,5 +9,3 @@ extern crate util;
 
 pub mod alloc;
 pub mod mmap;
-pub mod segments;
-pub mod vm;
