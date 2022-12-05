@@ -1,0 +1,4 @@
+CPP_SUFFIX 	:= ppa # Pre processor artifact.
+OBJ_SUFFIX	:= o
+
+export CPP_SUFFIX OBJ_SUFFIX

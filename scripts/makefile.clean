@@ -1,0 +1,15 @@
+# Argument.
+path := 
+
+include $(makeinc)/makefile.suffixes
+
+build_artifacts_suffixes: $(CPP_SUFFIX) $(OBJ_SUFFIX)
+
+PHONY += clean 
+clean: $(build_artifacts_suffixes)
+	@:
+
+$(build_artifacts_suffixes): FORCE
+	rm -rf $(path)/*.$@
+
+include $(makeinc)/makefile.tail
