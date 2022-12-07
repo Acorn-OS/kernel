@@ -1,0 +1,20 @@
+[package]
+name = "boot"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "acorn"
+path = "src/main.rs"
+
+[dependencies.arch]
+path = "../arch"
+
+[dependencies.mm]
+path = "../mm"
+
+[dependencies.kernel]
+path = "../kernel"
+
+[dependencies.util]
+path = "../util"

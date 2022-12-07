@@ -1,0 +1,20 @@
+[workspace]
+members = [
+    "boot",
+    "kernel",
+    "mm",
+    "util",
+    "arch",
+]
+
+[profile.dev]
+opt-level = 1
+debug-assertions = true 
+debug = true
+lto = false
+panic = "abort"
+
+[profile.release]
+opt-level = 3
+lto = true
+panic = "abort"
