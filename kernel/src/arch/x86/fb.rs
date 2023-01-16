@@ -43,7 +43,9 @@ fn place(c: char, col: Color) {
     unsafe { FB_PTR.add(X).add(Y * FB_WIDTH).write(Pixel(c as u8, col)) };
 }
 
-pub unsafe fn init() {}
+pub unsafe fn init() {
+    clear();
+}
 
 pub fn set_pos(x: usize, y: usize) {
     unsafe {

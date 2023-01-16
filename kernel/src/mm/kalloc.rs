@@ -6,7 +6,17 @@ use super::heap::Heap;
 use crate::arch;
 
 enum Allocator {
-    Alloc(spin::Mutex<Heap<12>>),
+    Alloc(
+        spin::Mutex<
+            Heap<
+                4,
+                {
+                    /* 32 * 128 = 4096 */
+                    128 * 4096
+                },
+            >,
+        >,
+    ),
     Uninit,
 }
 

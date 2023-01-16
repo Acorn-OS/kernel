@@ -1,20 +1,20 @@
 use core::{alloc::GlobalAlloc, ptr};
 
-/// ```2^(16*BLOCK_SIZE)``` bytes of allocatable space.
-pub struct Heap<const BLOCK_SIZE: usize> {
+/// `SIZE` is in bytes.
+pub struct Heap<const SIZE: usize, const COUNT: usize> {
     base: *mut u8,
 }
 
-unsafe impl<const BLOCK_SIZE: usize> Send for Heap<BLOCK_SIZE> {}
+unsafe impl<const SIZE: usize, const COUNT: usize> Send for Heap<SIZE, COUNT> {}
 
-impl<const BLOCK_SIZE: usize> Heap<BLOCK_SIZE> {
-    const BLOCK_LG2: usize = { BLOCK_SIZE };
+impl<const SIZE: usize, const COUNT: usize> Heap<SIZE, COUNT> {
+    const BLOCK_LG2: usize = { SIZE };
     const BLOCK_SIZE: usize = (1 << Self::BLOCK_LG2);
-    const BLOCKS: usize = Self::BLOCK_SIZE;
+    const BLOCKS: usize = COUNT;
     const MASK: usize = Self::BLOCK_SIZE - 1;
 
     pub unsafe fn new() -> Self {
-        let ptr = super::wm::reserve_pages(Self::BLOCKS * Self::BLOCK_SIZE + 1);
+        let ptr = super::wm::reserve_amount(Self::BLOCKS * Self::BLOCK_SIZE + COUNT.div_ceil(8));
         if ptr == ptr::null_mut() {
             panic!("Unable to create Heap: insufficient kernel work memory!")
         }
@@ -91,7 +91,7 @@ impl<const BLOCK_SIZE: usize> Heap<BLOCK_SIZE> {
     }
 }
 
-unsafe impl<const BLOCK_SIZE: usize> GlobalAlloc for Heap<BLOCK_SIZE> {
+unsafe impl<const SIZE: usize, const COUNT: usize> GlobalAlloc for Heap<SIZE, COUNT> {
     unsafe fn alloc(&self, layout: core::alloc::Layout) -> *mut u8 {
         let bytes = layout.size();
         let align = layout.align();

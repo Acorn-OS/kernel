@@ -42,7 +42,7 @@ impl log::Log for Logger {
 
 impl Write for Logger {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        arch::serial::puts(s);
+        arch::log(s);
         Ok(())
     }
 }
@@ -56,11 +56,4 @@ static LOGGER: Logger = Logger;
 pub fn init() {
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(log::LevelFilter::max());
-}
-
-/// Loggs initialization of module.
-macro_rules! trace_init {
-    ($str:literal) => {
-        trace!("{} ... init", $str)
-    };
 }

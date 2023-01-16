@@ -8,7 +8,7 @@ static mut PANIC_WRITER: PanicWriter = PanicWriter;
 
 impl Write for PanicWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        arch::serial::puts(s);
+        arch::log(s);
         Ok(())
     }
 }

@@ -11,12 +11,12 @@ pub unsafe fn init() {
     unsafe { CUR = KWM.0.as_ptr() as usize };
 }
 
-pub unsafe fn reserve_pages(amount: usize) -> *mut u8 {
-    if CUR + amount < /* TODO: remove constant */ KWM.0.as_ptr() as usize + KWM_LEN {
+pub unsafe fn reserve_amount(amount: usize) -> *mut u8 {
+    if CUR.saturating_add(amount) < /* TODO: remove constant */ KWM.0.as_ptr() as usize + KWM_LEN {
         let ptr = CUR as *mut u8;
         CUR += amount;
         ptr
     } else {
-        panic!("Out of allocatable work memory for the kernel.")
+        panic!("Out of allocatable work memory for the kernel. {amount}")
     }
 }

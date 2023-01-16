@@ -4,11 +4,13 @@
 #![feature(alloc_error_handler)]
 #![feature(panic_info_message)]
 
+#[macro_use]
 extern crate alloc;
 extern crate core;
 
 #[macro_use]
-extern crate log;
+pub extern crate log;
+
 #[macro_use]
 extern crate static_assertions;
 extern crate spin;
@@ -16,13 +18,14 @@ extern crate spin;
 extern crate proc_bitfield;
 
 #[macro_use]
-mod klog;
-mod arch;
-mod math;
-mod mm;
-mod panic;
+pub mod arch;
+pub mod mm;
 
-#[macro_export]
+mod klog;
+mod math;
+mod panic;
+mod tty;
+
 macro_rules! once {
     { $($tt:tt)* } => {
         {
@@ -31,6 +34,7 @@ macro_rules! once {
         }
     };
 }
+pub(crate) use once;
 
 /// Delays roughly `amount` of cycles.
 #[inline(always)]
@@ -39,18 +43,7 @@ fn delay(amount: u64) {
 }
 
 fn kmain() -> ! {
-    unsafe { arch::serial::init() };
-    klog::init();
-    trace_init!("logging");
-
-    mm::init();
-    trace_init!("mm");
-
-    unsafe {
-        arch::fb::init();
-        trace_init!("fb");
-    }
-
-    info!("Hello!");
+    log::info!("Welcome! AcornOS");
+    tty::run();
     loop {}
 }

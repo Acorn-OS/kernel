@@ -1,0 +1,15 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "kernel"
+path = "src/main.rs"
+
+[dependencies]
+cfg-if = "1.0.0"
+spin = "0.9.4"
+static_assertions = "1.1.0"
+log = "0.4.17"
+proc-bitfield = { version = "0.2.2", features = ["nightly"] }
