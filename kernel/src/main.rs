@@ -1,49 +1,30 @@
 #![no_std]
 #![no_main]
-#![feature(int_roundings)]
-#![feature(alloc_error_handler)]
 #![feature(panic_info_message)]
 
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 extern crate alloc;
-extern crate core;
 
-#[macro_use]
-pub extern crate log;
-
-#[macro_use]
-extern crate static_assertions;
-extern crate spin;
-#[macro_use]
-extern crate proc_bitfield;
-
-#[macro_use]
-pub mod arch;
-pub mod mm;
-
-mod klog;
-mod math;
+mod boot;
 mod panic;
 mod tty;
 
-macro_rules! once {
-    { $($tt:tt)* } => {
-        {
-            static __ONCE__: ::spin::Once = ::spin::Once::new();
-            *__ONCE__.call_once(|| { $($tt)* })
-        }
-    };
-}
-pub(crate) use once;
-
-/// Delays roughly `amount` of cycles.
-#[inline(always)]
-fn delay(amount: u64) {
-    ::core::hint::black_box(for _ in 0..amount {});
-}
-
-fn kmain() -> ! {
-    log::info!("Welcome! AcornOS");
+fn main() -> ! {
+    info!("AcornOS");
     tty::run();
+    error!("hanging kernel ungracefully...");
+    let mut string = alloc::string::String::new();
+    info!("test0: {string}");
+    string.push_str("hello world!");
+    info!("test1: {string}");
+    string.push_str(" yeahhhhhhhhhhhhhhhhh baby!");
+    info!("test2: {string}");
+    info!(
+        "test3: {}",
+        format!("{string} THAT IS WHAT I AM TALKING ABOUT!!!!")
+    );
     loop {}
 }

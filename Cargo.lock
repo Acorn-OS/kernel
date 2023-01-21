@@ -3,18 +3,10 @@
 version = 3
 
 [[package]]
-name = "arch"
-version = "0.1.0"
-
-[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
-
-[[package]]
-name = "boot"
-version = "0.1.0"
 
 [[package]]
 name = "cfg-if"
@@ -31,6 +23,7 @@ dependencies = [
  "proc-bitfield",
  "spin",
  "static_assertions",
+ "util",
 ]
 
 [[package]]
@@ -53,7 +46,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mm"
+name = "math"
 version = "0.1.0"
 
 [[package]]
@@ -131,3 +124,10 @@ name = "unicode-ident"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84a22b9f218b40614adcb3f4ff08b703773ad44fa9423e4e0d346d5db86e4ebc"
+
+[[package]]
+name = "util"
+version = "0.1.0"
+dependencies = [
+ "spin",
+]

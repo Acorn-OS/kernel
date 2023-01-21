@@ -1,9 +1,8 @@
 [workspace]
 members = [
-    "arch",
-    "boot",
     "kernel",
-    "mm",
+    "math",
+    "util",
 ]
 
 [profile.dev]

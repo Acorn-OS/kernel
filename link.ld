@@ -73,12 +73,7 @@ SECTIONS {
         *(.bss .bss.*)
         __bss_end = .;
     }
-
-    . = . - __kvma_beg;
-
     . = ALIGN(4K);
-    __base_page_table = .;
-    . += 4K;
-    
+    __kwm = .;
 } 
 
