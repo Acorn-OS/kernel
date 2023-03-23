@@ -1,26 +1,7 @@
-use core::fmt::Write;
+use core::panic::PanicInfo;
 
-struct PanicWriter;
-
-static mut PANIC_WRITER: PanicWriter = PanicWriter;
-
-impl Write for PanicWriter {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        kernel::klog::log_simple(s);
-        Ok(())
-    }
-}
-
-#[allow(unused_must_use)]
 #[panic_handler]
-pub unsafe fn panic_handler(info: &core::panic::PanicInfo) -> ! {
-    let location = info.location().unwrap();
-    PANIC_WRITER.write_fmt(format_args!(
-        "{} {}:{}\n\r{}\n\r",
-        location.file(),
-        location.line(),
-        location.column(),
-        info.message().unwrap()
-    ));
+fn panic(info: &PanicInfo) -> ! {
+    error!("[PANIC] {info}");
     loop {}
 }

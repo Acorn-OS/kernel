@@ -1,30 +1,30 @@
 #![no_std]
 #![no_main]
-#![feature(panic_info_message)]
+#![feature(trait_alias)]
+#![feature(const_maybe_uninit_zeroed)]
+
+#[macro_use]
+extern crate static_assertions;
+
+#[macro_use]
+extern crate cfg_if;
 
 #[macro_use]
 extern crate log;
 
 #[macro_use]
-extern crate alloc;
+extern crate ctor;
 
+#[macro_use]
+extern crate proc_bitfield;
+
+mod arch;
 mod boot;
+mod logging;
 mod panic;
-mod tty;
+mod util;
 
 fn main() -> ! {
-    info!("AcornOS");
-    tty::run();
-    error!("hanging kernel ungracefully...");
-    let mut string = alloc::string::String::new();
-    info!("test0: {string}");
-    string.push_str("hello world!");
-    info!("test1: {string}");
-    string.push_str(" yeahhhhhhhhhhhhhhhhh baby!");
-    info!("test2: {string}");
-    info!(
-        "test3: {}",
-        format!("{string} THAT IS WHAT I AM TALKING ABOUT!!!!")
-    );
+    info!("Acorn OS");
     loop {}
 }

@@ -1,0 +1,11 @@
+[unstable]
+build-std = ["core", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
+[build]
+target = "targets/acorn_amd64.json"
+
+[target.acorn_amd64]
+rustflags = [
+	"-C", "link-arg=-Tamd64.ld",
+]

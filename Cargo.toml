@@ -1,18 +1,12 @@
-[workspace]
-members = [
-    "kernel",
-    "math",
-    "util",
-]
+[package]
+name = "acorn"
+version = "0.1.0"
+edition = "2021"
+default-run = "acorn_build"
 
-[profile.dev]
-opt-level = 0
-debug-assertions = true 
-debug = true
-lto = false
-panic = "abort"
+[[bin]]
+name = "acorn_build"
+path = "acorn_build.rs"
 
-[profile.release]
-opt-level = 3
-lto = true
-panic = "abort"
+[dependencies]
+json = "0.12.4"

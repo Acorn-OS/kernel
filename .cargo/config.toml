@@ -1,10 +1,2 @@
-[unstable]
-build-std = ["core", "alloc"]
-build-std-features = ["compiler-builtins-mem"]
-
-[target.amd64]
-rustflags = [
-	"-C", "linker=ld",
-	"-C", "linker-flavor=ld",
-	"-C", "link-arg=-Tlink.ld",
-]
+[alias]
+qemu = "cargo run"
