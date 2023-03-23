@@ -49,6 +49,8 @@ impl Builder {
 }
 
 fn main() {
+    fs::create_dir_all("isoroot").expect("failed to create isoroot directory");
+    fs::create_dir_all("build").expect("failed to create build directory");
     let kernel_builder = Builder::new(PathBuf::from("kernel"));
     kernel_builder.build();
     fs::create_dir_all("isoroot/boot").expect("failed");
