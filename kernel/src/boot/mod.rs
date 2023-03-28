@@ -1,4 +1,11 @@
-mod limine;
+pub mod limine;
+
+use crate::arch::vmm;
+use crate::logging;
+use crate::mm::{heap, pmm};
+use core::arch::global_asm;
+
+global_asm!(include_str!("entry.asm"));
 
 /// Initialize all constructor functions
 unsafe fn call_init_arrays() {
@@ -15,26 +22,12 @@ unsafe fn call_init_arrays() {
 }
 
 #[no_mangle]
-unsafe extern "C" fn _start() -> ! {
-    crate::logging::init();
-    let ptr = &BOOT_INFO_DATA as *const _ as *mut BootInfo;
-    let boot_info = &mut *ptr;
-    let kernel_address = limine::kernel_address();
-    boot_info.kernel_phys_base = kernel_address.physical_base;
-    boot_info.kernel_virt_base = kernel_address.virtual_base;
-    info!(
-        "kernel mapped from phys [{:016X}] to virt [{:016X}]",
-        BOOT_INFO.kernel_phys_base, BOOT_INFO.kernel_virt_base
-    );
+unsafe extern "C" fn kernel_early() -> ! {
+    pmm::init();
+    let vmm_map = vmm::new_kernel();
+    vmm::install(vmm_map);
+    logging::init();
+    heap::init();
     unsafe { call_init_arrays() };
     crate::main()
 }
-
-pub struct BootInfo {
-    pub kernel_phys_base: u64,
-    pub kernel_virt_base: u64,
-}
-
-#[used]
-static mut BOOT_INFO_DATA: BootInfo = unsafe { core::mem::MaybeUninit::zeroed().assume_init() };
-pub static BOOT_INFO: &BootInfo = unsafe { &BOOT_INFO_DATA };

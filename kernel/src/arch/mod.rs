@@ -8,35 +8,75 @@ cfg_if! {
 }
 
 pub mod serial {
-    pub trait Serial {
-        fn putb(&self, b: u8);
-
-        fn putc(&self, c: char) {
-            self.putb(c as u8)
-        }
-
-        fn puts(&self, s: &str) {
-            for c in s.chars() {
-                self.putc(c)
-            }
-        }
-    }
+    use super::imp;
 
     pub mod uart {
-        use super::super::imp::serial::uart;
-        use super::Serial;
+        use super::imp::serial::uart;
 
-        pub type UART = uart::UART;
-        assert_impl_all!(UART: Serial);
-
-        static DEFAULT_UART: &UART = uart::DEFAULT_UART;
+        pub fn putb(b: u8) {
+            uart::putb(b)
+        }
 
         pub fn putc(c: char) {
-            Serial::putc(DEFAULT_UART, c)
+            putb(c as u8)
         }
 
         pub fn puts(s: &str) {
-            Serial::puts(DEFAULT_UART, s)
+            for c in s.chars() {
+                putc(c);
+            }
+        }
+    }
+}
+
+pub mod vmm {
+    use super::imp::vmm;
+
+    pub use vmm::AllocSize;
+    pub use vmm::PageMap;
+
+    pub fn new_kernel() -> *mut PageMap {
+        unsafe { vmm::new_kernel() }
+    }
+
+    pub unsafe fn install(map: *mut PageMap) {
+        vmm::install(map)
+    }
+}
+
+pub mod cpu {
+    use super::imp::cpu;
+
+    pub use cpu::Core;
+}
+
+pub mod fb {
+    use super::imp::fb;
+
+    pub const WIDTH: usize = fb::WIDTH;
+    pub const HEIGHT: usize = fb::HEIGHT;
+
+    pub type Cursor = fb::Cursor;
+
+    pub fn cursor() -> Cursor {
+        fb::cursor()
+    }
+
+    pub fn set_cursor(cursor: Cursor) {
+        fb::set_cursor(cursor)
+    }
+
+    pub fn putb(b: u8) {
+        fb::putb(b)
+    }
+
+    pub fn putc(c: char) {
+        putb(c as u8)
+    }
+
+    pub fn puts(s: &str) {
+        for c in s.chars() {
+            putc(c)
         }
     }
 }

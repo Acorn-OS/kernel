@@ -1,10 +1,11 @@
+use crate::arch::fb;
 use crate::arch::serial::uart;
 use core::fmt::Write;
 
 struct Logger;
 
 impl log::Log for Logger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
+    fn enabled(&self, _metadata: &log::Metadata) -> bool {
         true
     }
 
@@ -19,17 +20,19 @@ impl log::Log for Logger {
                     record.file().unwrap(),
                     record.line().unwrap()
                 );
-                write!(mut_self, "[ERR] {}\n", record.args());
+                writeln!(mut_self, "[E] {}", record.args());
             }
-            log::Level::Warn => todo!(),
+            log::Level::Warn => {
+                writeln!(mut_self, "[W] {}", record.args());
+            }
             log::Level::Info => {
-                write!(mut_self, "{}\n", record.args());
+                writeln!(mut_self, "[I] {}", record.args());
             }
             log::Level::Debug => {
-                write!(mut_self, "{}\n", record.args());
+                writeln!(mut_self, "[D] {}", record.args());
             }
             log::Level::Trace => {
-                write!(mut_self, "{}\n", record.args());
+                writeln!(mut_self, "[T] {}", record.args());
             }
         };
     }
@@ -40,6 +43,7 @@ impl log::Log for Logger {
 impl Write for Logger {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         uart::puts(s);
+        fb::puts(s);
         Ok(())
     }
 }

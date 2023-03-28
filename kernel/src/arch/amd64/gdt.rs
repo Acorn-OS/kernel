@@ -1,6 +1,34 @@
 use core::arch::{asm, global_asm};
 use core::fmt::Debug;
+use core::mem::size_of;
 
+use crate::mm::pmm;
+
+const KERNEL_CODE_ACCESS: u8 = 0x9a;
+const KERNEL_CODE_FLAGS: u8 = 0xa;
+const KERNEL_DATA_ACCESS: u8 = 0x92;
+const KERNEL_DATA_FLAGS: u8 = 0xa;
+
+const USRSPC_CODE_ACCESS: u8 = 0xfa;
+const USRSPC_CODE_FLAGS: u8 = 0xa;
+const USRSPC_DATA_ACCESS: u8 = 0xf2;
+const USRSPC_DATA_FLAGS: u8 = 0xa;
+
+#[allow(unused)]
+const ENTRY_SIZE: u16 = core::mem::size_of::<Entry>() as u16;
+const_assert_eq!(ENTRY_SIZE, 8);
+
+const _KERNEL_CODE_SELECTOR: u16 = ENTRY_SIZE;
+const _KERNEL_DATA_SELECTOR: u16 = ENTRY_SIZE * 2;
+const _USRSPC_CODE_SELECTOR: u16 = ENTRY_SIZE * 3;
+const _USRSPC_DATA_SELECTOR: u16 = ENTRY_SIZE * 4;
+
+global_asm!(include_str!("gdt.s"));
+extern "sysv64" {
+    fn set_segments();
+}
+
+#[derive(Clone, Copy)]
 #[repr(C, packed)]
 struct Entry(u64);
 
@@ -37,12 +65,12 @@ impl Debug for Entry {
 }
 
 #[repr(C, packed)]
-struct GDTR {
+struct Gdtr {
     size: u16,
     adr: u64,
 }
 
-impl Debug for GDTR {
+impl Debug for Gdtr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("GDTR")
             .field("size", &format_args!("{}", { self.size }))
@@ -53,7 +81,7 @@ impl Debug for GDTR {
 
 #[derive(Debug)]
 #[repr(C, packed)]
-struct GDT {
+pub struct Gdt {
     // 0x00
     null: Entry,
     // 0x08
@@ -66,59 +94,40 @@ struct GDT {
     usrspc_data: Entry,
 }
 
-impl GDT {
-    fn to_gdtr(&self) -> GDTR {
-        GDTR {
-            size: (core::mem::size_of::<GDT>() - 1) as u16,
+impl Gdt {
+    pub fn new() -> Self {
+        Self {
+            null: Entry::null(),
+            kernel_code: Entry::new(0, 0xffffff, KERNEL_CODE_FLAGS, KERNEL_CODE_ACCESS),
+            kernel_data: Entry::new(0, 0xffffff, KERNEL_DATA_FLAGS, KERNEL_DATA_ACCESS),
+            usrspc_code: Entry::new(0, 0xffffff, USRSPC_CODE_FLAGS, USRSPC_CODE_ACCESS),
+            usrspc_data: Entry::new(0, 0xffffff, USRSPC_DATA_FLAGS, USRSPC_DATA_ACCESS),
+        }
+    }
+
+    pub unsafe fn install(&self) {
+        crate::util::irq_di();
+        let gdtr = self.to_gdtr();
+        asm!(
+            "lgdt [rax]",
+            in("rax")(&gdtr),
+            options(nostack)
+        );
+        set_segments();
+    }
+
+    fn to_gdtr(&self) -> Gdtr {
+        Gdtr {
+            size: (core::mem::size_of::<Gdt>() - 1) as u16,
             adr: self as *const _ as u64,
         }
     }
 }
 
-const KERNEL_CODE_ACCESS: u8 = 0x9a;
-const KERNEL_CODE_FLAGS: u8 = 0xa;
-const KERNEL_DATA_ACCESS: u8 = 0x92;
-const KERNEL_DATA_FLAGS: u8 = 0xa;
-
-const USRSPC_CODE_ACCESS: u8 = 0xfa;
-const USRSPC_CODE_FLAGS: u8 = 0xa;
-const USRSPC_DATA_ACCESS: u8 = 0xf2;
-const USRSPC_DATA_FLAGS: u8 = 0xa;
-
-#[allow(unused)]
-const ENTRY_SIZE: u16 = core::mem::size_of::<Entry>() as u16;
-const_assert_eq!(ENTRY_SIZE, 8);
-
-const _KERNEL_CODE_SELECTOR: u16 = ENTRY_SIZE * 1;
-const _KERNEL_DATA_SELECTOR: u16 = ENTRY_SIZE * 2;
-const _USRSPC_CODE_SELECTOR: u16 = ENTRY_SIZE * 3;
-const _USRSPC_DATA_SELECTOR: u16 = ENTRY_SIZE * 4;
-
-static GDT: GDT = GDT {
-    null: Entry::null(),
-    kernel_code: Entry::new(0, 0xffffff, KERNEL_CODE_FLAGS, KERNEL_CODE_ACCESS),
-    kernel_data: Entry::new(0, 0xffffff, KERNEL_DATA_FLAGS, KERNEL_DATA_ACCESS),
-    usrspc_code: Entry::new(0, 0xffffff, USRSPC_CODE_FLAGS, USRSPC_CODE_ACCESS),
-    usrspc_data: Entry::new(0, 0xffffff, USRSPC_DATA_FLAGS, USRSPC_DATA_ACCESS),
-};
-
-global_asm!(include_str!("gdt.s"));
-extern "sysv64" {
-    fn set_segments();
-}
-
-//#[ctor]
+#[ctor(core)]
 unsafe fn init() {
-    info!("configuring gdt");
-    crate::util::irq_di();
-    let gdtr = GDT.to_gdtr();
-    info!("{gdtr:?}");
-    info!("{:p}", &GDT as *const _);
-    asm!(
-        "lgdt [rax]",
-        in("rax")(&gdtr),
-        options(nostack)
-    );
-    set_segments();
-    info!("gdt configured");
+    debug!("installing gdt");
+    let gdt = pmm::alloc_pages(size_of::<Gdt>().div_ceil(pmm::PAGE_SIZE)) as *mut Gdt;
+    (*gdt) = Gdt::new();
+    (*gdt).install();
 }

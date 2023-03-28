@@ -1,5 +1,5 @@
-.section .text
 .code64
+.section .text
 
 .global set_segments
 set_segments:

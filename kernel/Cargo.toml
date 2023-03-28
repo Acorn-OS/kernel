@@ -21,7 +21,11 @@ proc-bitfield = "0.2.2"
 [dependencies.ctor]
 path = "lib/ctor"
 
+[dependencies.bitmap]
+path = "lib/bitmap"
+
 [members]
 members = [
     "lib/ctor",
+    "lib/bitmap",
 ]

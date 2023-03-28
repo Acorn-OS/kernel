@@ -1,17 +1,20 @@
 use crate::arch::imp::port::out8;
-use crate::arch::serial::Serial;
 
-pub struct UART(u16);
+pub struct Uart(u16);
 
-impl Serial for UART {
-    fn putb(&self, b: u8) {
+impl Uart {
+    pub fn putb(&self, b: u8) {
         out8(self.0, b)
     }
 }
 
-static UARTS: &[UART] = &[
+static UARTS: &[Uart] = &[
     // COM1
-    UART(0x3F8),
+    Uart(0x3F8),
 ];
 
-pub static DEFAULT_UART: &UART = &UARTS[0];
+pub static DEFAULT_UART: &Uart = &UARTS[0];
+
+pub fn putb(b: u8) {
+    DEFAULT_UART.putb(b);
+}

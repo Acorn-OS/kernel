@@ -11,3 +11,9 @@ pub fn irq_di() {
 pub fn irq_en() {
     unsafe { core::arch::asm!("sti") }
 }
+
+pub fn halt() {
+    unsafe {
+        core::arch::asm!("hlt");
+    }
+}
