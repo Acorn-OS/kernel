@@ -11,6 +11,7 @@ type BitMap = bitmap::BitMapPtr<PAGE_EXP>;
 static mut PHYS_MEM_BASE_ADR: u64 = 0;
 static mut BITMAP: BitMap = BitMap::new(null_mut(), 0);
 
+
 /// Allocate `count` amount of pages in physical memory.
 pub unsafe fn alloc_pages(count: usize) -> *mut u8 {
     if let Some(index) = BITMAP.get_first_empty(count) {

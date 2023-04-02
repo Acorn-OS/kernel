@@ -5,6 +5,8 @@
 #![feature(const_maybe_uninit_zeroed)]
 #![feature(int_roundings)]
 #![feature(const_slice_from_raw_parts_mut)]
+#![feature(allocator_api)]
+#![feature(slice_ptr_get)]
 
 #[macro_use]
 extern crate static_assertions;
@@ -40,7 +42,8 @@ fn tmp() {
 
     info!("debugging freelists");
 
-    let mut free_lists = FreeList::new();
+    let mut free_lists = FreeList::<alloc::alloc::Global>::new();
+    info!("{free_lists:?}");
     free_lists.push_region(0, 0x100).unwrap();
     info!("{free_lists:?}");
     let ptr = free_lists.alloc::<[u8; 0x20]>().expect("expected #0");
@@ -52,7 +55,7 @@ fn tmp() {
 
     info!("new scenario");
 
-    let mut free_lists = FreeList::new();
+    let mut free_lists = FreeList::<alloc::alloc::Global>::new();
     free_lists.push_region(0, 0x100).unwrap();
     info!("{free_lists:?}");
     free_lists.alloc::<[u8; 0x20]>().unwrap();

@@ -1,0 +1,18 @@
+/*.log
+/isoroot
+/build
+
+# Ignore build generated files
+/target 
+/Cargo.lock
+
+# Ignore kernel generated files
+/kernel/target
+/kernel/Cargo.lock
+
+# Ignore lib generated files
+/lib/target
+/lib/Cargo.lock
+
+
+

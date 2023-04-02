@@ -1,56 +1,62 @@
 use super::pmm;
-use core::alloc::{GlobalAlloc, Layout};
+use core::alloc::{Allocator, GlobalAlloc, Layout};
 
 pub const PAGE_SIZE: usize = pmm::PAGE_SIZE;
+const PAGE_EXP: usize = pmm::PAGE_EXP;
 pub const PAGE_COUNT: usize = 256;
-pub const VIRT_ADR: usize = 0xfffff80000000000;
-pub static mut PHYS_ADR: usize = 0;
+pub const VIRT_ADR: u64 = 0xfffff80000000000;
+pub static mut PHYS_ADR: u64 = 0;
 
-type Allocator = bitmap::BitMap<{ pmm::PAGE_EXP }, { PAGE_COUNT.div_ceil(8) }>;
+#[derive(Default)]
+struct NodeAllocator;
 
-static mut ALLOCATOR: Allocator = Allocator::new();
+unsafe impl Allocator for NodeAllocator {
+    /* TODO: optimize for space */
 
-/// Allocate `count` amount of pages in physical memory.
-pub unsafe fn alloc_pages(count: usize) -> *mut u8 {
-    if let Some(index) = ALLOCATOR.get_first_empty(count) {
-        for i in 0..count {
-            ALLOCATOR.alloc(index + i);
-        }
-        (VIRT_ADR + index * PAGE_SIZE) as *mut u8
-    } else {
-        panic!("insufficient kernel heap memory")
+    fn allocate(
+        &self,
+        layout: Layout,
+    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
+        Ok(unsafe {
+            core::ptr::NonNull::new_unchecked(core::slice::from_raw_parts_mut(
+                pmm::alloc_pages(1),
+                layout.size(),
+            ))
+        })
+    }
+
+    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, _layout: Layout) {
+        pmm::dealloc_pages(ptr.as_ptr(), 1)
     }
 }
 
-/// Allocate `count` amount of zeroed pages in physical memory.
-pub unsafe fn alloc_pages_zeroed(count: usize) -> *mut u8 {
-    let ptr = alloc_pages(count);
-    ptr.write_bytes(0, count * PAGE_SIZE);
-    ptr
+type AllocatorTy = freelist::FreeListAllocator<NodeAllocator>;
+
+#[global_allocator]
+static GLOBAL_ALLOC: AllocatorTy = unsafe { AllocatorTy::new(NodeAllocator) };
+
+pub unsafe fn alloc_bytes(count: usize) -> *mut u8 {
+    debug_assert!(count <= isize::MAX as usize);
+    GlobalAlloc::alloc(&GLOBAL_ALLOC, Layout::from_size_align_unchecked(count, 1))
 }
 
-/// Deallocates `count` pages at physical address `ptr`.
-pub unsafe fn dealloc_pages(ptr: *const u8, count: usize) {
-    let base = ptr as usize - VIRT_ADR;
-    let index = base / ALLOCATOR.page_size();
-    for i in 0..count {
-        ALLOCATOR.free(index + i);
-    }
+pub unsafe fn free_bytes(ptr: *mut u8, count: usize) {
+    debug_assert!(count <= isize::MAX as usize);
+    GlobalAlloc::dealloc(
+        &GLOBAL_ALLOC,
+        ptr,
+        Layout::from_size_align_unchecked(count, 1),
+    )
 }
 
 unsafe fn alloc_layout(layout: Layout) -> *mut u8 {
-    let size = layout.size() + layout.align();
-    let ptr: *mut u8 = alloc_pages(size.div_ceil(PAGE_SIZE)) as *mut _;
-    let ptr = ptr.add(PAGE_SIZE % layout.align());
-    ptr
+    GlobalAlloc::alloc(&GLOBAL_ALLOC, layout)
 }
 
 unsafe fn dealloc_layout(ptr: *mut u8, layout: Layout) {
-    let size = layout.size() + (layout.align() % PAGE_SIZE != 0) as usize;
-    dealloc_pages(ptr as *const u8, size.div_ceil(PAGE_SIZE))
+    GlobalAlloc::dealloc(&GLOBAL_ALLOC, ptr, layout);
 }
 
-#[inline(always)]
 pub unsafe fn alloc<T>(val: T) -> *mut T {
     let layout = Layout::new::<T>();
     let ptr = alloc_layout(layout) as *mut T;
@@ -58,40 +64,27 @@ pub unsafe fn alloc<T>(val: T) -> *mut T {
     ptr
 }
 
-#[allow(unused)]
-unsafe fn dealloc<T>(ptr: *const T) {
+pub unsafe fn dealloc<T>(ptr: *const T) {
     let layout = Layout::new::<T>();
     dealloc_layout(ptr as *mut u8, layout)
 }
 
 pub unsafe fn init() {
-    PHYS_ADR = pmm::alloc_pages(PAGE_COUNT) as usize;
+    PHYS_ADR = pmm::alloc_pages(PAGE_COUNT) as u64;
     info!(
         "initializing heap at virtual address '0x{VIRT_ADR:016X}' with physical adr '0x{PHYS_ADR:016X}'"
     );
     info!("heap page size '{PAGE_SIZE}' and page count '{PAGE_COUNT}'");
     debug!(
         "heap virtual range '0x{VIRT_ADR:016X} -> 0x{:016X}'",
-        VIRT_ADR + PAGE_COUNT * PAGE_SIZE
+        VIRT_ADR + (PAGE_COUNT * PAGE_SIZE) as u64
     );
     debug!(
         "heap physical range '0x{:016X} -> 0x{:016X}'",
         PHYS_ADR,
-        PHYS_ADR + PAGE_COUNT * PAGE_SIZE
+        PHYS_ADR + (PAGE_COUNT * PAGE_SIZE) as u64
     );
-}
-
-struct HeapGlobalAlloc;
-
-#[global_allocator]
-static GLOBAL_ALLOC: HeapGlobalAlloc = HeapGlobalAlloc;
-
-unsafe impl GlobalAlloc for HeapGlobalAlloc {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        alloc_layout(layout)
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        dealloc_layout(ptr, layout)
-    }
+    GLOBAL_ALLOC
+        .push_region(VIRT_ADR, PAGE_COUNT * PAGE_SIZE)
+        .expect("unable to push region into global heap");
 }

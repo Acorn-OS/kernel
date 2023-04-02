@@ -1,4 +1,9 @@
 #![no_std]
+#![feature(allocator_api)]
+
+use core::alloc::{Allocator, Layout};
+
+extern crate alloc;
 
 trait BitMapTrait {
     fn is_alloc(&self, page: usize) -> bool {
@@ -165,3 +170,31 @@ impl<const EXPONENT: usize> BitMapPtr<EXPONENT> {
 
     impl_func_wrapper!();
 }
+
+pub struct BitMapAllocator<const EXPONENT: usize, const COUNT: usize> {
+    bitmap: BitMap<EXPONENT, COUNT>,
+}
+
+//impl<const EXPONENT: usize, const COUNT: usize> BitMapAllocator<EXPONENT, COUNT> {
+//    fn alloc_layout(&self, layout: Layout) {}
+//
+//    fn free_layout(&self, layout: Layout) {}
+//
+//    pub fn alloc<T>(&self) -> *mut T {}
+//
+//    pub fn free<T>(&self, ptr: *mut T) {}
+//
+//    pub fn alloc_bytes(&self, len: usize) {}
+//
+//    pub fn free_bytes(&self, ptr: *mut u8, len: usize) {}
+//}
+
+//unsafe impl<const EXPONENT: usize, const COUNT: usize> Allocator for BitMapAllocator {
+//    unsafe fn alloc(&self, layout: core::alloc::Layout) -> *mut u8 {
+//        Self::alloc_layout(self, layout)
+//    }
+//
+//    unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {
+//        Self::free_layout(self, layout)
+//    }
+//}
