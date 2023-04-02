@@ -1,3 +1,8 @@
+use super::lapic::eoi;
+use core::arch::global_asm;
+
+global_asm!(include_str!("isr.s"));
+
 #[repr(C)]
 pub struct StackFrame {
     rbp: u64,
@@ -32,171 +37,216 @@ macro_rules! irq_handler {
     };
 }
 
-extern "sysv64" {
+extern "C" {
     irq_handler! {
-        _irq_handler_0,
-        _irq_handler_1,
-        _irq_handler_2,
-        _irq_handler_3,
-        _irq_handler_4,
-        _irq_handler_5,
-        _irq_handler_6,
-        _irq_handler_7,
-        _irq_handler_8,
-        _irq_handler_9,
-        _irq_handler_10,
-        _irq_handler_11,
-        _irq_handler_12,
-        _irq_handler_13,
-        _irq_handler_14,
-        _irq_handler_15,
-        _irq_handler_16,
-        _irq_handler_17,
-        _irq_handler_18,
-        _irq_handler_19,
-        _irq_handler_20,
-        _irq_handler_21,
-        _irq_handler_22,
-        _irq_handler_23,
-        _irq_handler_24,
-        _irq_handler_25,
-        _irq_handler_26,
-        _irq_handler_27,
-        _irq_handler_28,
-        _irq_handler_29,
-        _irq_handler_30,
-        _irq_handler_31
+        irq_handler_0,
+        irq_handler_1,
+        irq_handler_2,
+        irq_handler_3,
+        irq_handler_4,
+        irq_handler_5,
+        irq_handler_6,
+        irq_handler_7,
+        irq_handler_8,
+        irq_handler_9,
+        irq_handler_10,
+        irq_handler_11,
+        irq_handler_12,
+        irq_handler_13,
+        irq_handler_14,
+        irq_handler_15,
+        irq_handler_16,
+        irq_handler_17,
+        irq_handler_18,
+        irq_handler_19,
+        irq_handler_20,
+        irq_handler_21,
+        irq_handler_22,
+        irq_handler_23,
+        irq_handler_24,
+        irq_handler_25,
+        irq_handler_26,
+        irq_handler_27,
+        irq_handler_28,
+        irq_handler_29,
+        irq_handler_30,
+        irq_handler_31,
+        irq_handler_32,
+        irq_handler_33,
+        irq_handler_34,
+        irq_handler_35,
+        irq_handler_36,
+        irq_handler_37,
+        irq_handler_38,
+        irq_handler_39,
+        irq_handler_40,
+        irq_handler_41,
+        irq_handler_42,
+        irq_handler_43,
+        irq_handler_44,
+        irq_handler_45,
+        irq_handler_46,
+        irq_handler_47
     }
 }
 
 #[no_mangle]
-pub unsafe extern "sysv64" fn unimp() {
-    panic!("unimplemented handler")
+pub unsafe extern "C" fn unimp() -> ! {
+    panic!("unimplemented handler");
 }
 
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_division_error(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
+mod excpt {
+    use super::*;
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_division_error(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!();
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_debug(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!();
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_non_maskable_interrupt(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!();
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_breakpoint(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!();
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_overflow(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_bound_range_exceeded(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_invalid_opcode(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_device_not_available(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_double_fault(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_deprecated(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_invalid_tss(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_segment_not_present(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_stack_segment_fault(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_general_protection_fault(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_page_fault(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_reserved(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_x87_floating_point(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_alignment_check(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_machine_check(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_simd_floating_point(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_virtualization(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_control_protection(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_hypervisor_injection(
+        _stackframe: *mut StackFrame,
+    ) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_vmm_communication(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn excpt_security(_stackframe: *mut StackFrame) -> *mut StackFrame {
+        unimplemented!()
+    }
 }
 
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_debug(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
+mod irq {
+    use super::*;
 
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_non_maskable_interrupt(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_breakpoint(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_overflow(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_bound_range_exceeded(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_invalid_opcode(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_device_not_available(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_double_fault(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_deprecated(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_invalid_tss(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_segment_not_present(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_stack_segment_fault(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_general_protection_fault(
-    _stackframe: *mut StackFrame,
-) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_page_fault(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_reserved(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_x87_floating_point(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_alignment_check(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_machine_check(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_simd_floating_point(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_virtualization(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_control_protection(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_hypervisor_injection(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_vmm_communication(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
-}
-
-#[no_mangle]
-unsafe extern "sysv64" fn excpt_security(_stackframe: *mut StackFrame) -> StackFrame {
-    unimplemented!()
+    #[no_mangle]
+    unsafe extern "C" fn irq_timer(stackframe: *mut StackFrame) -> *mut StackFrame {
+        info!("timer!");
+        eoi();
+        stackframe
+    }
 }

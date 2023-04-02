@@ -1,8 +1,5 @@
 use core::arch::{asm, global_asm};
 use core::fmt::Debug;
-use core::mem::size_of;
-
-use crate::mm::pmm;
 
 const KERNEL_CODE_ACCESS: u8 = 0x9a;
 const KERNEL_CODE_FLAGS: u8 = 0xa;
@@ -18,10 +15,10 @@ const USRSPC_DATA_FLAGS: u8 = 0xa;
 const ENTRY_SIZE: u16 = core::mem::size_of::<Entry>() as u16;
 const_assert_eq!(ENTRY_SIZE, 8);
 
-const _KERNEL_CODE_SELECTOR: u16 = ENTRY_SIZE;
-const _KERNEL_DATA_SELECTOR: u16 = ENTRY_SIZE * 2;
-const _USRSPC_CODE_SELECTOR: u16 = ENTRY_SIZE * 3;
-const _USRSPC_DATA_SELECTOR: u16 = ENTRY_SIZE * 4;
+pub const KERNEL_CODE_SELECTOR: u16 = ENTRY_SIZE;
+pub const KERNEL_DATA_SELECTOR: u16 = ENTRY_SIZE * 2;
+pub const USRSPC_CODE_SELECTOR: u16 = ENTRY_SIZE * 3;
+pub const USRSPC_DATA_SELECTOR: u16 = ENTRY_SIZE * 4;
 
 global_asm!(include_str!("gdt.s"));
 extern "sysv64" {
@@ -122,12 +119,4 @@ impl Gdt {
             adr: self as *const _ as u64,
         }
     }
-}
-
-#[ctor(core)]
-unsafe fn init() {
-    debug!("installing gdt");
-    let gdt = pmm::alloc_pages(size_of::<Gdt>().div_ceil(pmm::PAGE_SIZE)) as *mut Gdt;
-    (*gdt) = Gdt::new();
-    (*gdt).install();
 }

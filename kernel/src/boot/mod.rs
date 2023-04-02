@@ -1,12 +1,5 @@
 pub mod limine;
 
-use crate::arch::vmm;
-use crate::logging;
-use crate::mm::{heap, pmm};
-use core::arch::global_asm;
-
-global_asm!(include_str!("entry.asm"));
-
 /// Initialize all constructor functions
 unsafe fn call_init_arrays() {
     extern "C" {
@@ -21,13 +14,7 @@ unsafe fn call_init_arrays() {
     }
 }
 
-#[no_mangle]
-unsafe extern "C" fn kernel_early() -> ! {
-    pmm::init();
-    let vmm_map = vmm::new_kernel();
-    vmm::install(vmm_map);
-    logging::init();
-    heap::init();
+pub unsafe extern "C" fn kernel_early() -> ! {
     unsafe { call_init_arrays() };
     crate::main()
 }

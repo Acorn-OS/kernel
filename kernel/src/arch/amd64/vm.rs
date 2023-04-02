@@ -1,9 +1,14 @@
+use super::fb;
 use crate::boot::limine;
 use crate::mm::{heap, pmm};
 use core::arch::asm;
 use core::mem::size_of;
 
-use super::fb;
+assert_eq_size!(usize, u64);
+
+pub const SMALL_PAGE_SIZE: u64 = 1 << 12;
+pub const MEDIUM_PAGE_SIZE: u64 = 1 << 21;
+pub const LARGE_PAGE_SIZE: u64 = 1 << 30;
 
 bitfield! {
     #[derive(Clone, Copy)]
@@ -20,6 +25,7 @@ bitfield! {
         pub xd: bool @ 63,
     }
 }
+const_assert!(size_of::<PageMapEntry>() == 8);
 
 impl PageMapEntry {
     pub fn adr(&self) -> u64 {
@@ -35,6 +41,7 @@ impl PageMapEntry {
 pub struct PageMap {
     entries: [PageMapEntry; 512],
 }
+const_assert!(size_of::<PageMap>() == 4096);
 
 mod get {
     use super::*;
@@ -56,6 +63,20 @@ mod get {
     }
 }
 
+#[derive(Clone, Copy)]
+#[repr(u64)]
+pub enum AllocSize {
+    SmallPage = SMALL_PAGE_SIZE,
+    MediumPage = MEDIUM_PAGE_SIZE,
+    LagePage = LARGE_PAGE_SIZE,
+}
+
+impl AllocSize {
+    pub fn size(&self) -> u64 {
+        *self as u64
+    }
+}
+
 unsafe fn set(page_map: *mut PageMap, index: usize, adr: u64, large: bool) {
     debug_assert!(index < 512);
     let index = index & 0x1FF;
@@ -66,17 +87,18 @@ unsafe fn set(page_map: *mut PageMap, index: usize, adr: u64, large: bool) {
     entry.set_rw(true);
 }
 
-#[derive(Clone, Copy)]
-#[repr(u64)]
-pub enum AllocSize {
-    S4KiB = (1 << 12),
-    S2MiB = (1 << 21),
-    S1GiB = (1 << 30),
-}
-
-impl AllocSize {
-    pub fn size(&self) -> u64 {
-        *self as u64
+unsafe fn resv(page_map: *mut PageMap, index: usize, adr: u64, large: bool) -> Result<(), ()> {
+    debug_assert!(index < 512);
+    let index = index & 0x1FF;
+    let entry = &mut (*page_map).entries[index];
+    if entry.p() {
+        Err(())
+    } else {
+        entry.set_adr(adr);
+        entry.set_ps(large);
+        entry.set_p(true);
+        entry.set_rw(true);
+        Ok(())
     }
 }
 
@@ -113,9 +135,74 @@ impl PageMap {
         )
     }
 
+    /// reserves virtual pages in memory.
+    /// Gives an error if the page was already reserved.
+    pub unsafe fn resv(
+        &mut self,
+        size: AllocSize,
+        mut virt: u64,
+        pages: usize,
+        mut phys: u64,
+    ) -> Result<(), ()> {
+        match size {
+            AllocSize::SmallPage => {
+                for _ in 0..pages {
+                    let (d0, d1, d2, d3, _) = Self::divide_virt_adr(virt);
+                    self.resv_map4((d0, d1, d2, d3), phys & !0xFFF)?;
+                    virt += size.size();
+                    phys += size.size();
+                }
+            }
+            AllocSize::MediumPage => {
+                for _ in 0..pages {
+                    let (d0, d1, d2, _, _) = Self::divide_virt_adr(virt);
+                    self.resv_map3((d0, d1, d2), phys & !((1 << 21) - 1))?;
+                    virt += size.size();
+                    phys += size.size();
+                }
+            }
+            AllocSize::LagePage => {
+                for _ in 0..pages {
+                    let (d0, d1, _, _, _) = Self::divide_virt_adr(virt);
+                    self.resv_map2((d0, d1), phys & !((1 << 30) - 1))?;
+                    virt += size.size();
+                    phys += size.size();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    unsafe fn resv_map2(&mut self, index: (usize, usize), adr: u64) -> Result<(), ()> {
+        let ptr = self.as_mut_ptr();
+        let (d0, d1) = index;
+        resv(get::allocate(ptr, d0), d1, adr, true)
+    }
+
+    unsafe fn resv_map3(&mut self, index: (usize, usize, usize), adr: u64) -> Result<(), ()> {
+        let ptr = self.as_mut_ptr();
+        let (d0, d1, d2) = index;
+        resv(get::allocate(get::allocate(ptr, d0), d1), d2, adr, true)
+    }
+
+    unsafe fn resv_map4(
+        &mut self,
+        index: (usize, usize, usize, usize),
+        adr: u64,
+    ) -> Result<(), ()> {
+        let ptr = self.as_mut_ptr();
+        let (d0, d1, d3, d4) = index;
+        resv(
+            get::allocate(get::allocate(get::allocate(ptr, d0), d1), d3),
+            d4,
+            adr,
+            false,
+        )
+    }
+
     pub unsafe fn alloc(&mut self, size: AllocSize, mut virt: u64, pages: usize, mut phys: u64) {
         match size {
-            AllocSize::S4KiB => {
+            AllocSize::SmallPage => {
                 for _ in 0..pages {
                     let (d0, d1, d2, d3, _) = Self::divide_virt_adr(virt);
                     self.alloc_map4((d0, d1, d2, d3), phys & !0xFFF);
@@ -123,7 +210,7 @@ impl PageMap {
                     phys += size.size();
                 }
             }
-            AllocSize::S2MiB => {
+            AllocSize::MediumPage => {
                 for _ in 0..pages {
                     let (d0, d1, d2, _, _) = Self::divide_virt_adr(virt);
                     self.alloc_map3((d0, d1, d2), phys & !((1 << 21) - 1));
@@ -131,7 +218,7 @@ impl PageMap {
                     phys += size.size();
                 }
             }
-            AllocSize::S1GiB => {
+            AllocSize::LagePage => {
                 for _ in 0..pages {
                     let (d0, d1, _, _, _) = Self::divide_virt_adr(virt);
                     self.alloc_map2((d0, d1), phys & !((1 << 30) - 1));
@@ -170,35 +257,35 @@ impl PageMap {
     }
 }
 
-const_assert!(size_of::<PageMapEntry>() == 8);
-const_assert!(size_of::<PageMap>() == 4096);
-assert_eq_size!(usize, u64);
-
-pub unsafe fn new_kernel() -> *mut PageMap {
+pub unsafe fn new_kernel() -> Result<*mut PageMap, *mut PageMap> {
     let map = pmm::alloc_pages_zeroed(1) as *mut PageMap;
     let s4kib = 4 << 10;
     // Identity map the initial 4GiB of physical memory,
-    (*map).alloc(AllocSize::S1GiB, 0, 4, 0);
+    (*map).resv(AllocSize::LagePage, 0, 4, 0).or(Err(map))?;
     // Map heap memory.
-    (*map).alloc(
-        AllocSize::S4KiB,
-        heap::VIRT_ADR as u64,
-        heap::PAGE_COUNT,
-        heap::PHYS_ADR as u64,
-    );
+    (*map)
+        .resv(
+            AllocSize::SmallPage,
+            heap::VIRT_ADR as u64,
+            heap::PAGE_COUNT,
+            heap::PHYS_ADR as u64,
+        )
+        .or(Err(map))?;
     // Map video display memory
-    (*map).alloc(
-        AllocSize::S4KiB,
-        fb::VIRT_ADR as u64,
-        fb::PAGE_COUNT,
-        fb::PHYS_ADR as u64,
-    );
+    (*map)
+        .resv(
+            AllocSize::SmallPage,
+            fb::VIRT_ADR as u64,
+            fb::PAGE_COUNT,
+            fb::PHYS_ADR as u64,
+        )
+        .or(Err(map))?;
     // Map kernel to high address.
     let page_count = (30 << 20) / s4kib;
     let phys_adr = limine::kernel_address().physical_base;
     let virt_adr = 0xffffffff80000000 as u64;
-    (*map).alloc(AllocSize::S4KiB, virt_adr, page_count, phys_adr);
-    map
+    (*map).alloc(AllocSize::SmallPage, virt_adr, page_count, phys_adr);
+    Ok(map)
 }
 
 pub unsafe fn install(map: *mut PageMap) {

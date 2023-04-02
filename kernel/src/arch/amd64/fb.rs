@@ -14,6 +14,7 @@ impl PixelCol {
 
 #[repr(C, packed)]
 struct Pixel(u8, PixelCol);
+assert_eq_size!(Pixel, u16);
 
 impl Pixel {
     pub fn new(b: u8, col: PixelCol) -> Self {
@@ -22,7 +23,7 @@ impl Pixel {
 }
 
 pub const VIRT_ADR: usize = 0xffffff8000000000;
-pub const PHYS_ADR: usize = 0xA0000;
+pub const PHYS_ADR: usize = 0xb8000;
 
 /// 128KiB of display memory.
 pub const PAGE_COUNT: usize = 32;
@@ -30,34 +31,7 @@ pub const PAGE_COUNT: usize = 32;
 pub const WIDTH: usize = 80;
 pub const HEIGHT: usize = 20;
 
-static mut CURSOR: Cursor = Cursor { x: 0, y: 0 };
-
-pub fn cursor() -> Cursor {
-    unsafe { CURSOR }
-}
-
-pub fn set_cursor(cursor: Cursor) {
-    unsafe {
-        CURSOR = Cursor {
-            x: cursor.x.max(WIDTH),
-            y: cursor.y.max(HEIGHT),
-        }
-    }
-}
-
-unsafe fn step_cursor() {
-    CURSOR.x += 1;
-    if CURSOR.x > WIDTH {
-        CURSOR.x = 0;
-        CURSOR.y += 1;
-        if CURSOR.y > HEIGHT {
-            CURSOR.y = 0;
-        }
-    }
-}
-
-pub fn putb(b: u8) {
-    let ptr = VIRT_ADR as *mut Pixel;
-    unsafe { *ptr.add(CURSOR.x + CURSOR.y * WIDTH) = Pixel(b, PixelCol::WHITE) };
-    unsafe { step_cursor() };
+pub fn putb(pos: Cursor, b: u8) {
+    let ptr = PHYS_ADR as *mut Pixel;
+    unsafe { *ptr.add(pos.x + pos.y * WIDTH) = Pixel(b, PixelCol::WHITE) };
 }

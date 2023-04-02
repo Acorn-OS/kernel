@@ -41,8 +41,8 @@
 
 .macro EXCPT n, name 
 	.align 8
-	.global _irq_handler_\n
-	_irq_handler_\n:
+	.global irq_handler_\n
+	irq_handler_\n:
         cld
 		push \n
 		PUSH_REGS
@@ -57,8 +57,8 @@
 
 .macro EXCPT_DUMMY n, name 
 	.align 8
-	.global _irq_handler_\n
-	_irq_handler_\n:
+	.global irq_handler_\n
+	irq_handler_\n:
         cld
         push EXCEPTION_DUMMY_ERROR 
 		push \n
@@ -74,15 +74,15 @@
 
 .macro IRQ n, name 
 	.align 8
-	.global _irq_handler_\n
-	_irq_handler_\n:
+	.global irq_handler_\n
+	irq_handler_\n:
         cld
         push EXCEPTION_DUMMY_ERROR
 		push \n 
 		PUSH_REGS
 		mov rdi, rsp 
-		.extern irq_\name
-		call irq_\name
+		.extern \name
+		call \name
 		mov rsp, rax 
 		POP_REGS
 		add rsp, 16
@@ -121,4 +121,21 @@ EXCPT_DUMMY 28 hypervisor_injection
 EXCPT 29 vmm_communication
 EXCPT 30 security
 EXCPT_DUMMY 31 reserved
+
+IRQ 32 irq_timer
+IRQ 33 unimp 
+IRQ 34 unimp
+IRQ 35 unimp
+IRQ 36 unimp
+IRQ 37 unimp
+IRQ 38 unimp
+IRQ 39 unimp
+IRQ 40 unimp
+IRQ 41 unimp
+IRQ 42 unimp
+IRQ 43 unimp
+IRQ 44 unimp
+IRQ 45 unimp 
+IRQ 46 unimp
+IRQ 47 unimp
 

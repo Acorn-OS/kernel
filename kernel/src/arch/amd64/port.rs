@@ -80,3 +80,8 @@ pub fn in32(port: u16) -> u32 {
     }
     out
 }
+
+pub fn wait() {
+    use crate::util::delay;
+    delay(512);
+}

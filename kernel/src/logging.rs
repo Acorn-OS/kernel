@@ -1,4 +1,3 @@
-use crate::arch::fb;
 use crate::arch::serial::uart;
 use core::fmt::Write;
 
@@ -43,7 +42,6 @@ impl log::Log for Logger {
 impl Write for Logger {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         uart::puts(s);
-        fb::puts(s);
         Ok(())
     }
 }

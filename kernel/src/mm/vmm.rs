@@ -1,4 +1,4 @@
-use crate::arch::vmm::PageMap;
+use crate::arch::vm::PageMap;
 use crate::mm::pmm;
 
 pub const PAGE_SIZE: usize = pmm::PAGE_SIZE;
@@ -19,6 +19,10 @@ impl VirtualMemory {
     pub unsafe fn free_pages(_ptr: *mut u8, _pages: usize) {
         todo!()
     }
+}
+
+pub fn new_kernel() -> VirtualMemory {
+    todo!()
 }
 
 pub fn new_userland() -> VirtualMemory {

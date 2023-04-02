@@ -14,10 +14,18 @@ mod req {
         pub response: *mut KernelAddress,
     }
 
+    #[repr(C)]
     pub struct MMapReq {
         pub id: [u64; 4],
         pub revision: u64,
         pub response: *mut MMap,
+    }
+
+    #[repr(C)]
+    pub struct RsdpReq {
+        pub id: [u64; 4],
+        pub revision: u64,
+        pub response: *mut Rsdp,
     }
 }
 
@@ -56,6 +64,12 @@ pub struct MMap {
 unsafe impl Send for MMap {}
 unsafe impl Sync for MMap {}
 
+#[repr(C)]
+pub struct Rsdp {
+    pub revision: u64,
+    pub address: *mut (),
+}
+
 #[used]
 static mut KERNEL_ADDRESS_REQ: req::KernelAddressReq = req::KernelAddressReq {
     id: new_id(0x71ba76863cc55f63, 0xb2644a48c516a487),
@@ -70,12 +84,19 @@ static mut MMAP_REQ: req::MMapReq = req::MMapReq {
     response: null_mut(),
 };
 
+static mut RSDP_REQ: req::RsdpReq = req::RsdpReq {
+    id: new_id(0xc5e77b6b397e7b43, 0x27637845accdcf3c),
+    revision: u64::MAX,
+    response: null_mut(),
+};
+
 #[used]
 #[link_section = ".limine_reqs"]
-static mut PTRS: [*mut (); 2] = unsafe {
+static mut PTRS: [*mut (); 3] = unsafe {
     [
         &KERNEL_ADDRESS_REQ as *const _ as *mut _,
         &MMAP_REQ as *const _ as *mut _,
+        &RSDP_REQ as *const _ as *mut _,
     ]
 };
 
@@ -85,4 +106,8 @@ pub fn kernel_address() -> &'static KernelAddress {
 
 pub fn mmap() -> &'static MMap {
     unsafe { &*MMAP_REQ.response }
+}
+
+pub fn rsdp() -> &'static Rsdp {
+    unsafe { &*RSDP_REQ.response }
 }

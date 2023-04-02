@@ -29,19 +29,11 @@ pub mod serial {
     }
 }
 
-pub mod vmm {
-    use super::imp::vmm;
+pub mod vm {
+    use super::imp::vm;
 
-    pub use vmm::AllocSize;
-    pub use vmm::PageMap;
-
-    pub fn new_kernel() -> *mut PageMap {
-        unsafe { vmm::new_kernel() }
-    }
-
-    pub unsafe fn install(map: *mut PageMap) {
-        vmm::install(map)
-    }
+    pub use vm::AllocSize;
+    pub use vm::PageMap;
 }
 
 pub mod cpu {
@@ -58,25 +50,7 @@ pub mod fb {
 
     pub type Cursor = fb::Cursor;
 
-    pub fn cursor() -> Cursor {
-        fb::cursor()
-    }
-
-    pub fn set_cursor(cursor: Cursor) {
-        fb::set_cursor(cursor)
-    }
-
-    pub fn putb(b: u8) {
-        fb::putb(b)
-    }
-
-    pub fn putc(c: char) {
-        putb(c as u8)
-    }
-
-    pub fn puts(s: &str) {
-        for c in s.chars() {
-            putc(c)
-        }
+    pub fn putb(pos: Cursor, b: u8) {
+        fb::putb(pos, b)
     }
 }

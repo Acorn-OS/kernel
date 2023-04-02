@@ -24,8 +24,20 @@ path = "lib/ctor"
 [dependencies.bitmap]
 path = "lib/bitmap"
 
+[dependencies.bitset]
+path = "lib/bitset"
+
+[dependencies.buddy]
+path = "lib/buddy"
+
+[dependencies.freelist]
+path = "lib/freelist"
+
 [members]
 members = [
     "lib/ctor",
     "lib/bitmap",
+    "lib/bitset",
+    "lib/buddy",
+    "lib/freelist",
 ]
