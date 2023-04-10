@@ -1,4 +1,4 @@
-use crate::boot::limine;
+use crate::boot;
 
 #[repr(C, packed)]
 pub struct Rdsp {
@@ -14,6 +14,16 @@ pub struct Rdsp {
 }
 
 pub fn get() -> &'static Rdsp {
-    debug!("RDSP address: {:016X}", limine::rsdp().address as usize);
-    unsafe { &*(limine::rsdp().address as *const Rdsp) }
+    debug!("RDSP address: {:016X}", unsafe {
+        boot::rsdp()
+            .address
+            .as_ptr()
+            .expect("cannot get RDSP address!") as usize
+    });
+    unsafe {
+        &*(boot::rsdp()
+            .address
+            .as_ptr()
+            .expect("cannot get RDSP address!") as *const Rdsp)
+    }
 }

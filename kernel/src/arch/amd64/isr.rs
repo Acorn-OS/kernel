@@ -1,4 +1,4 @@
-use super::lapic::eoi;
+use crate::arch::amd64::vm;
 use core::arch::global_asm;
 
 global_asm!(include_str!("isr.s"));
@@ -96,7 +96,10 @@ pub unsafe extern "C" fn unimp() -> ! {
 }
 
 mod excpt {
+    use crate::mm::pmm;
+
     use super::*;
+    use core::arch::asm;
 
     #[no_mangle]
     unsafe extern "C" fn excpt_division_error(_stackframe: *mut StackFrame) -> *mut StackFrame {
@@ -181,8 +184,26 @@ mod excpt {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn excpt_page_fault(_stackframe: *mut StackFrame) -> *mut StackFrame {
-        unimplemented!()
+    unsafe extern "C" fn excpt_page_fault(stackframe: *mut StackFrame) -> *mut StackFrame {
+        let adr: u64;
+        asm!(
+            "mov {adr}, cr2",
+            adr = out(reg) adr
+        );
+        if adr == 0 {
+            panic!("nullptr")
+        }
+        if let Some(entry) = vm::get_page_entry(vm::get_cur(), adr) {
+            if (*entry).is_resv() {
+                (*entry).set_adr(pmm::alloc_pages_zeroed(1) as u64);
+                (*entry).set_present()
+            } else {
+                panic!("accessed an unreserved page");
+            }
+        } else {
+            panic!("invalid memory access!")
+        }
+        stackframe
     }
 
     #[no_mangle]
@@ -246,7 +267,7 @@ mod irq {
     #[no_mangle]
     unsafe extern "C" fn irq_timer(stackframe: *mut StackFrame) -> *mut StackFrame {
         info!("timer!");
-        eoi();
+        todo!(); // eoi!
         stackframe
     }
 }

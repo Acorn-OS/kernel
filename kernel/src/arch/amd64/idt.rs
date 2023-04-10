@@ -1,3 +1,6 @@
+use crate::mm::pmm;
+use crate::mm::vmm::VirtualMemory;
+
 use super::gdt::KERNEL_CODE_SELECTOR;
 use core::arch::asm;
 use core::mem::size_of;
@@ -153,4 +156,11 @@ impl Idt {
     fn set_entry(&mut self, index: u8, entry: IdtEntry) {
         self.entries[index as usize] = entry;
     }
+}
+
+pub unsafe fn new(map: &mut VirtualMemory) -> *mut Idt {
+    let pages = size_of::<Idt>().div_ceil(pmm::PAGE_SIZE);
+    let ptr = map.map_pages(pages, pmm::alloc_pages(pages) as u64) as *mut Idt;
+    ptr.write(Idt::new());
+    ptr
 }

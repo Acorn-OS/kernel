@@ -1,5 +1,9 @@
 use core::arch::{asm, global_asm};
 use core::fmt::Debug;
+use core::mem::size_of;
+
+use crate::mm::pmm;
+use crate::mm::vmm::VirtualMemory;
 
 const KERNEL_CODE_ACCESS: u8 = 0x9a;
 const KERNEL_CODE_FLAGS: u8 = 0xa;
@@ -119,4 +123,11 @@ impl Gdt {
             adr: self as *const _ as u64,
         }
     }
+}
+
+pub unsafe fn new(map: &mut VirtualMemory) -> *mut Gdt {
+    let pages = size_of::<Gdt>().div_ceil(pmm::PAGE_SIZE);
+    let ptr = map.map_pages(pages, pmm::alloc_pages(pages) as u64) as *mut Gdt;
+    ptr.write(Gdt::new());
+    ptr
 }

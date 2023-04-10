@@ -45,15 +45,26 @@ impl Node {
     }
 }
 
+fn node_alloc<A: Allocator>(node: Node, a: &A) -> Result<*mut Node> {
+    let layout = Layout::new::<Node>();
+    let alloc = a.allocate(layout)?.as_ptr().as_mut_ptr() as *mut Node;
+    unsafe { alloc.write(node) };
+    Ok(alloc)
+}
+
+fn node_free<A: Allocator>(node: *mut Node, a: &A) {
+    let layout = Layout::new::<Node>();
+    unsafe { a.deallocate(NonNull::new_unchecked(node as *mut u8), layout) }
+}
+
 pub struct FreeList<A: Allocator = Global> {
     head: *mut Node,
-    tail: *mut Node,
     allocator: A,
 }
 
 unsafe impl<A: Allocator> Send for FreeList<A> {}
 
-impl Debug for FreeList<Global> {
+impl<A: Allocator> Debug for FreeList<A> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use alloc::string::String;
         f.debug_struct("FreeLists")
@@ -63,9 +74,10 @@ impl Debug for FreeList<Global> {
                 while !head.is_null() {
                     unsafe {
                         vec.push(format!(
-                            "{:016X}:{:016X}",
+                            "{:016X}:{:016X} ({:X})",
                             (*head).start,
                             (*head).start + (*head).len as u64,
+                            (*head).len,
                         ));
                         head = (*head).next;
                     }
@@ -90,34 +102,23 @@ impl<A: Allocator> FreeList<A> {
     pub const unsafe fn with_allocator(a: A) -> Self {
         Self {
             head: null_mut(),
-            tail: null_mut(),
             allocator: a,
         }
     }
 
     pub fn push_region(&mut self, adr: u64, len: usize) -> Result<()> {
-        let layout = Layout::new::<Node>();
-        let alloc = self.allocator.allocate(layout)?.as_ptr().as_mut_ptr() as *mut Node;
-        unsafe {
-            alloc.write(Node {
-                start: adr,
-                len,
-                next: null_mut(),
-            })
-        };
-        unsafe { self.push_node_raw(alloc) };
+        let node = node_alloc(Node::new(adr, len), &self.allocator)?;
+        unsafe { self.push_node_raw(node) };
         Ok(())
     }
 
     pub unsafe fn push_node_raw(&mut self, node: *mut Node) {
-        if self.tail.is_null() {
-            self.tail = node;
-        } else {
-            unsafe { (*self.tail).next = node };
-            self.tail = node;
-        }
         if self.head.is_null() {
-            self.head = self.tail;
+            self.head = node;
+        } else {
+            let prev_head = self.head;
+            self.head = node;
+            (*self.head).next = prev_head;
         }
     }
 
@@ -161,47 +162,140 @@ impl<A: Allocator> FreeList<A> {
             .map(|v| v as *mut T)
     }
 
-    pub fn free_bytes(&mut self, ptr: *mut u8, len: usize) -> Result<()> {
-        let begin = ptr as u64;
+    unsafe fn insert_node(&mut self, node: *mut Node) {
+        let mut cur = self.head;
+        let mut previous = null_mut() as *mut Node;
+        let begin = (*node).start;
+        let len = (*node).len;
         let end = begin + len as u64;
-        let mut head = self.head;
-        unsafe {
-            while !head.is_null() {
-                let mut val = head.read();
-                let cur_begin = val.start;
-                let cur_end = val.start + val.len as u64;
-                if cur_begin == end {
-                    val.start = begin;
-                    val.len += len;
-                    head.write(val);
-                    return Ok(());
-                } else if cur_end == begin {
-                    val.len += len;
-                    head.write(val);
-                    return Ok(());
-                }
-                head = val.next;
+        while !cur.is_null() {
+            let cur_begin = (*cur).start;
+            let cur_end = (*cur).start + (*cur).len as u64;
+            if cur_begin == end {
+                if previous.is_null() {
+                    self.head = (*cur).next;
+                } else {
+                    (*previous).next = (*cur).next;
+                };
+                (*cur).start = begin;
+                (*cur).len += len;
+                (*cur).next = null_mut();
+                self.insert_node(cur);
+                node_free(node, &self.allocator);
+                return;
+            } else if cur_end == begin {
+                if previous.is_null() {
+                    self.head = (*cur).next;
+                } else {
+                    (*previous).next = (*cur).next;
+                };
+                (*cur).len += len;
+                (*cur).next = null_mut();
+                self.insert_node(cur);
+                node_free(node, &self.allocator);
+                return;
             }
+            previous = cur;
+            cur = (*cur).next;
         }
-        self.push_region(begin, len)
+        self.push_node_raw(node);
+    }
+
+    pub fn free_bytes(&mut self, ptr: *mut u8, len: usize) -> Result<()> {
+        let node = node_alloc(Node::new(ptr as u64, len), &self.allocator)?;
+        unsafe {
+            self.insert_node(node);
+        }
+        Ok(())
     }
 
     pub fn free<T>(&mut self, ptr: *mut T) -> Result<()> {
         let layout = Layout::new::<T>();
         self.free_bytes(ptr as *mut u8, layout.size())
     }
+
+    pub fn reserve_bytes(&mut self, adr: u64, count: usize) -> Result<()> {
+        let start = adr;
+        let end = start + count as u64;
+        let mut cur = self.head;
+        let mut prev = null_mut() as *mut Node;
+        unsafe {
+            while !cur.is_null() {
+                let cur_start = (*cur).start;
+                let cur_len = (*cur).len;
+                let cur_end = cur_start + cur_len as u64;
+                if start >= cur_start && end <= cur_end {
+                    let left_beg = cur_start;
+                    let left_len = start - left_beg;
+                    let right_beg = end;
+                    let right_len = cur_end - right_beg;
+                    if prev.is_null() {
+                        self.head = (*cur).next;
+                    } else {
+                        (*prev).next = (*cur).next;
+                    }
+                    node_free(cur, &self.allocator);
+                    if left_len > 0 {
+                        self.push_region(left_beg, left_len as usize)?;
+                    }
+                    if right_len > 0 {
+                        self.push_region(right_beg, right_len as usize)?;
+                    }
+                    break;
+                } else if start >= cur_start && start < cur_end && end > cur_end {
+                    let len = cur_len - (start - cur_start) as usize;
+                    (*cur).len = len;
+                    if len <= 0 {
+                        if prev.is_null() {
+                            (*prev).next = (*cur).next;
+                        } else {
+                            self.head = (*cur).next;
+                        }
+                        node_free(cur, &self.allocator);
+                    }
+                    self.reserve_bytes(cur_end, (end - cur_end) as usize)?;
+                    break;
+                } else if start < cur_start && end >= cur_start && end < cur_end {
+                    let len = cur_len - (end - cur_start) as usize;
+                    (*cur).start = end;
+                    (*cur).len = len;
+                    if len <= 0 {
+                        if prev.is_null() {
+                            (*prev).next = (*cur).next;
+                        } else {
+                            self.head = (*cur).next;
+                        }
+                        node_free(cur, &self.allocator);
+                    }
+                    self.reserve_bytes(start, (cur_start - start) as usize)?;
+                    break;
+                }
+                prev = cur;
+                cur = (*cur).next;
+            }
+        }
+        Ok(())
+    }
 }
 
 pub struct FreeListAllocator<A: Allocator = Global>(Mutex<FreeList<A>>);
 
-impl Debug for FreeListAllocator<Global> {
+unsafe impl<A: Allocator + Sync> Sync for FreeListAllocator<A> {}
+
+impl<A: Allocator> Debug for FreeListAllocator<A> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         Debug::fmt(&self.0.lock(), f)
     }
 }
 
+impl FreeListAllocator<Global> {
+    pub const fn new() -> Self {
+        Self(Mutex::new(FreeList::new()))
+    }
+}
+
 impl<A: Allocator> FreeListAllocator<A> {
-    pub const unsafe fn new(a: A) -> Self {
+    pub const unsafe fn with_allocator(a: A) -> Self {
         Self(Mutex::new(FreeList::with_allocator(a)))
     }
 
@@ -212,9 +306,13 @@ impl<A: Allocator> FreeListAllocator<A> {
     pub fn push_region(&self, adr: u64, len: usize) -> Result<()> {
         self.0.lock().push_region(adr, len)
     }
+
+    pub fn reserve_bytes(&self, adr: u64, count: usize) -> Result<()> {
+        self.0.lock().reserve_bytes(adr, count)
+    }
 }
 
-unsafe impl<A: Allocator + Default> Allocator for FreeListAllocator<A> {
+unsafe impl<A: Allocator> Allocator for FreeListAllocator<A> {
     fn allocate(&self, layout: Layout) -> core::result::Result<NonNull<[u8]>, AllocError> {
         match self
             .0
@@ -236,12 +334,12 @@ unsafe impl<A: Allocator + Default> Allocator for FreeListAllocator<A> {
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         match self.0.lock().free_bytes(ptr.as_ptr(), layout.size()) {
             Ok(_) => {}
-            Err(err) => panic!("failed to deallocate in FreeList with error '{err:?}'"),
+            Err(e) => panic!("deallocation in freelist with error '{e:?}'"),
         }
     }
 }
 
-unsafe impl<A: Allocator + Default> GlobalAlloc for FreeListAllocator<A> {
+unsafe impl<A: Allocator> GlobalAlloc for FreeListAllocator<A> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         if let Ok(res) = self.allocate(layout) {
             res.as_ptr().as_mut_ptr()

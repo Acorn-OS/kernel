@@ -18,3 +18,13 @@ pub static DEFAULT_UART: &Uart = &UARTS[0];
 pub fn putb(b: u8) {
     DEFAULT_UART.putb(b);
 }
+
+pub fn putc(c: char) {
+    putb(c as u8)
+}
+
+pub fn puts(s: &str) {
+    for c in s.chars() {
+        putc(c);
+    }
+}

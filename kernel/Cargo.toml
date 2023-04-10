@@ -17,6 +17,7 @@ static_assertions = "1.1.0"
 spin = "0.9.5"
 log = "0.4.17"
 proc-bitfield = "0.2.2"
+limine = {version = "0.1.10", features = ["requests-section"]}
 
 [dependencies.ctor]
 path = "lib/ctor"

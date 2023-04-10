@@ -1,7 +1,6 @@
 use super::msr;
-use super::vm::{AllocSize, PageMap};
+use crate::mm::vmm::VirtualMemory;
 
-pub const VIRT_BASE: u64 = 0xfffffff800000000;
 const BASE_LAPIC_MSR: u32 = 0x1b;
 
 fn get_local_apic_base_adr() -> u64 {
@@ -18,10 +17,7 @@ fn toggle_enabled_local_apic(v: bool) {
     msr::set(BASE_LAPIC_MSR, apic)
 }
 
-fn get_local() -> LApicPtr {
-    LApicPtr(VIRT_BASE)
-}
-
+#[derive(Clone, Copy)]
 pub struct LApicPtr(u64);
 
 impl LApicPtr {
@@ -60,20 +56,17 @@ impl LApicPtr {
         let ptr = (self.0 + reg as u64) as *const u32;
         *ptr
     }
+
+    pub unsafe fn eoi(self) {
+        self.write_reg(LApicPtr::EOI, 0);
+    }
 }
 
-pub unsafe fn eoi() {
-    let ptr = get_local();
-    ptr.write_reg(LApicPtr::EOI, 0);
-}
-
-pub unsafe fn init_locally(page_map: &mut PageMap) {
+pub unsafe fn create_local(page_map: &mut VirtualMemory) -> LApicPtr {
     let phys_adr = get_local_apic_base_adr();
-    page_map
-        .resv(AllocSize::SmallPage, VIRT_BASE, 1, phys_adr)
-        .expect("failed to reserve apic into memory.");
+    let virt = page_map.map_pages(1, phys_adr);
     toggle_enabled_local_apic(true);
-    let ptr = get_local();
+    let ptr = LApicPtr(virt as u64);
     // enables the lapic.
     ptr.write_reg(
         LApicPtr::SPURIUOS_INT_VEC,
@@ -85,4 +78,5 @@ pub unsafe fn init_locally(page_map: &mut PageMap) {
         LApicPtr::LVT_TIMER,
         0x20 | (0b01 << 17) | (1 << 16), /* mask the irq */
     );
+    ptr
 }

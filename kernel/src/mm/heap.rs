@@ -1,18 +1,17 @@
 use super::pmm;
+use super::vmm::VirtualMemory;
 use core::alloc::{Allocator, GlobalAlloc, Layout};
 
 pub const PAGE_SIZE: usize = pmm::PAGE_SIZE;
-const PAGE_EXP: usize = pmm::PAGE_EXP;
+pub const PAGE_EXP: usize = pmm::PAGE_EXP;
 pub const PAGE_COUNT: usize = 256;
-pub const VIRT_ADR: u64 = 0xfffff80000000000;
-pub static mut PHYS_ADR: u64 = 0;
+const VIRTUAL_BASE: u64 = 0xffffff8000000000;
 
 #[derive(Default)]
 struct NodeAllocator;
 
 unsafe impl Allocator for NodeAllocator {
     /* TODO: optimize for space */
-
     fn allocate(
         &self,
         layout: Layout,
@@ -26,14 +25,14 @@ unsafe impl Allocator for NodeAllocator {
     }
 
     unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, _layout: Layout) {
-        pmm::dealloc_pages(ptr.as_ptr(), 1)
+        pmm::free_pages(ptr.as_ptr(), 1)
     }
 }
 
 type AllocatorTy = freelist::FreeListAllocator<NodeAllocator>;
 
 #[global_allocator]
-static GLOBAL_ALLOC: AllocatorTy = unsafe { AllocatorTy::new(NodeAllocator) };
+static GLOBAL_ALLOC: AllocatorTy = unsafe { AllocatorTy::with_allocator(NodeAllocator) };
 
 pub unsafe fn alloc_bytes(count: usize) -> *mut u8 {
     debug_assert!(count <= isize::MAX as usize);
@@ -69,22 +68,14 @@ pub unsafe fn dealloc<T>(ptr: *const T) {
     dealloc_layout(ptr as *mut u8, layout)
 }
 
+pub struct HeapBaseAddress(u64);
+
 pub unsafe fn init() {
-    PHYS_ADR = pmm::alloc_pages(PAGE_COUNT) as u64;
-    info!(
-        "initializing heap at virtual address '0x{VIRT_ADR:016X}' with physical adr '0x{PHYS_ADR:016X}'"
-    );
-    info!("heap page size '{PAGE_SIZE}' and page count '{PAGE_COUNT}'");
-    debug!(
-        "heap virtual range '0x{VIRT_ADR:016X} -> 0x{:016X}'",
-        VIRT_ADR + (PAGE_COUNT * PAGE_SIZE) as u64
-    );
-    debug!(
-        "heap physical range '0x{:016X} -> 0x{:016X}'",
-        PHYS_ADR,
-        PHYS_ADR + (PAGE_COUNT * PAGE_SIZE) as u64
-    );
     GLOBAL_ALLOC
-        .push_region(VIRT_ADR, PAGE_COUNT * PAGE_SIZE)
+        .push_region(VIRTUAL_BASE, PAGE_COUNT * PAGE_SIZE)
         .expect("unable to push region into global heap");
+}
+
+pub unsafe fn virtually_map(map: &mut VirtualMemory) {
+    map.alloc_pages_with_base_virt(PAGE_COUNT, VIRTUAL_BASE);
 }

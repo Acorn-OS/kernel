@@ -7,25 +7,28 @@ cfg_if! {
     }
 }
 
+macro_rules! assert_fn {
+    ($fn:path: $($tt:tt)*) => {
+        const _: $($tt)* = $fn;
+    };
+}
+
+macro_rules! export_assert_fn {
+    ($fn:path: $($tt:tt)*) => {
+        pub use $fn;
+        assert_fn!($fn: $($tt)*);
+    };
+}
+
 pub mod serial {
     use super::imp;
 
     pub mod uart {
         use super::imp::serial::uart;
 
-        pub fn putb(b: u8) {
-            uart::putb(b)
-        }
-
-        pub fn putc(c: char) {
-            putb(c as u8)
-        }
-
-        pub fn puts(s: &str) {
-            for c in s.chars() {
-                putc(c);
-            }
-        }
+        export_assert_fn!(uart::putb: fn(u8));
+        export_assert_fn!(uart::putc: fn(char));
+        export_assert_fn!(uart::puts: fn(&str));
     }
 }
 
@@ -34,6 +37,19 @@ pub mod vm {
 
     pub use vm::AllocSize;
     pub use vm::PageMap;
+    pub use vm::PageMapEntry;
+
+    pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
+
+    export_assert_fn!(vm::alloc_pages: unsafe fn(*mut PageMap, u64, usize, u64));
+    export_assert_fn!(vm::alloc_large_pages: unsafe fn(*mut PageMap, u64, usize, u64));
+    export_assert_fn!(vm::free_pages: unsafe fn(*mut PageMap, u64, usize));
+    export_assert_fn!(vm::install: unsafe fn(*mut PageMap));
+    export_assert_fn!(vm::new_page_map: fn() -> *mut PageMap);
+    export_assert_fn!(
+        vm::get_page_entry: unsafe fn(*mut PageMap, u64) -> Option<*mut PageMapEntry>
+    );
+    export_assert_fn!(vm::resv_pages: unsafe fn(*mut PageMap, u64, usize));
 }
 
 pub mod cpu {
@@ -50,7 +66,5 @@ pub mod fb {
 
     pub type Cursor = fb::Cursor;
 
-    pub fn putb(pos: Cursor, b: u8) {
-        fb::putb(pos, b)
-    }
+    export_assert_fn!(fb::putb: fn(pos: Cursor, b: u8));
 }

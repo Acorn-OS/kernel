@@ -25,12 +25,12 @@ SECTIONS
 
     . += 0x1000;
 
-    .limine_reqs : {
-        *(.limine_reqs)
-    } :data 
-
     .data : {
         *(.data .data.*)
+    } :data
+
+    .limine_reqs : {
+        *(.limine_reqs)
     } :data
 
     .init_array : {
