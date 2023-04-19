@@ -52,10 +52,16 @@ pub mod vm {
     export_assert_fn!(vm::resv_pages: unsafe fn(*mut PageMap, u64, usize));
 }
 
-pub mod cpu {
-    use super::imp::cpu;
+pub mod cpuc {
+    use super::imp::cpuc;
+    use crate::mm::vmm::VirtualMemory;
 
-    pub use cpu::Core;
+    pub use cpuc::Core;
+
+    assert_fn!(Core::vmm: fn(&Core) -> *mut VirtualMemory);
+    assert_fn!(Core::set_vmm: fn(&mut Core, *mut VirtualMemory));
+
+    export_assert_fn!(cpuc::get: fn() -> *mut Core);
 }
 
 pub mod fb {

@@ -25,8 +25,8 @@ impl Redirection {
     const TRIGGER_MODE_LEVEL_SENSITIVE: bool = true;
 }
 
-struct IoApicPtr(u64);
+struct IOAPICPtr(u64);
 
-impl IoApicPtr {}
+impl IOAPICPtr {}
 
 pub unsafe fn init() {}

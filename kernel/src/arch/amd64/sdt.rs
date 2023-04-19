@@ -1,7 +1,7 @@
-use super::rsdp;
+use super::rsdp::RDSP;
 
 #[repr(C, packed)]
-struct Rsdt {
+pub struct RSDT {
     pub singature: [char; 4],
     pub length: u32,
     pub revision: u8,
@@ -13,12 +13,11 @@ struct Rsdt {
     pub creator_revision: u32,
 }
 
-fn get_base() -> &'static Rsdt {
-    unsafe { &*(rsdp::get().rsdt_adr as *const Rsdt) }
+pub fn get_base(rsdp: &RDSP) -> &'static RSDT {
+    unsafe { &*(rsdp.rsdt_adr as *const RSDT) }
 }
 
-pub unsafe fn validate() -> bool {
-    let rsdt = get_base();
+pub unsafe fn validate(rsdt: &RSDT) -> bool {
     debug!(
         "validating RSDT at physical address 0x{:016X}",
         rsdt as *const _ as usize

@@ -1,12 +1,12 @@
-use crate::mm::pmm;
+use crate::mm::{hhdm, pmm};
 use core::arch::asm;
 use core::mem::size_of;
 
 assert_eq_size!(usize, u64);
 
-pub const SMALL_PAGE_SIZE: u64 = 1 << 12;
-pub const MEDIUM_PAGE_SIZE: u64 = 1 << 21;
-pub const LARGE_PAGE_SIZE: u64 = 1 << 30;
+pub const SMALL_PAGE_SIZE: usize = 1 << 12;
+pub const MEDIUM_PAGE_SIZE: usize = 1 << 21;
+pub const LARGE_PAGE_SIZE: usize = 1 << 30;
 
 pub const PAGE_SIZE: usize = SMALL_PAGE_SIZE as usize;
 
@@ -62,6 +62,8 @@ const_assert!(size_of::<PageMap>() == PAGE_SIZE);
 const_assert!(PAGE_SIZE == pmm::PAGE_SIZE);
 
 mod get {
+    use crate::mm::hhdm;
+
     use super::*;
 
     pub unsafe fn allocate(page_map: *mut PageMap, index: usize) -> *mut PageMap {
@@ -70,12 +72,13 @@ mod get {
         let entry = &mut (*page_map).entries[index];
         if !entry.p() {
             let new = new_page_map();
-            *entry = PageMapEntry::new_kernel_small(new as u64);
+            let phys = hhdm::to_phys(new as *mut _) as *mut PageMap;
+            *entry = PageMapEntry::new_kernel_small(phys as u64);
             new
         } else if entry.p() && entry.ps() {
-            todo!()
+            panic!("reallocating page")
         } else {
-            entry.adr() as *mut PageMap
+            hhdm::to_virt(entry.adr() as *const _) as *mut PageMap
         }
     }
 
@@ -86,15 +89,15 @@ mod get {
         if !entry.p() {
             None
         } else if entry.p() && entry.ps() {
-            todo!()
+            panic!("reallocating page")
         } else {
-            Some(entry.adr() as *mut PageMap)
+            Some(hhdm::to_virt(entry.adr() as *const _) as *mut _)
         }
     }
 }
 
 #[derive(Clone, Copy)]
-#[repr(u64)]
+#[repr(usize)]
 pub enum AllocSize {
     SmallPage = SMALL_PAGE_SIZE,
     MediumPage = MEDIUM_PAGE_SIZE,
@@ -102,8 +105,8 @@ pub enum AllocSize {
 }
 
 impl AllocSize {
-    pub fn size(&self) -> u64 {
-        *self as u64
+    pub fn size(&self) -> usize {
+        *self as usize
     }
 }
 
@@ -190,24 +193,24 @@ impl PageMap {
                 for _ in 0..pages {
                     let (d0, d1, d2, d3, _) = Self::divide_virt_adr(virt);
                     self.alloc_map4((d0, d1, d2, d3), phys & !0xFFF);
-                    virt += size.size();
-                    phys += size.size();
+                    virt += size.size() as u64;
+                    phys += size.size() as u64;
                 }
             }
             AllocSize::MediumPage => {
                 for _ in 0..pages {
                     let (d0, d1, d2, _, _) = Self::divide_virt_adr(virt);
                     self.alloc_map3((d0, d1, d2), phys & !((1 << 21) - 1));
-                    virt += size.size();
-                    phys += size.size();
+                    virt += size.size() as u64;
+                    phys += size.size() as u64;
                 }
             }
             AllocSize::LagePage => {
                 for _ in 0..pages {
                     let (d0, d1, _, _, _) = Self::divide_virt_adr(virt);
                     self.alloc_map2((d0, d1), phys & !((1 << 30) - 1));
-                    virt += size.size();
-                    phys += size.size();
+                    virt += size.size() as u64;
+                    phys += size.size() as u64;
                 }
             }
         }
@@ -236,8 +239,8 @@ impl PageMap {
         );
     }
 
-    fn as_mut_ptr(&self) -> *mut PageMap {
-        self as *const _ as *mut PageMap
+    fn as_mut_ptr(&mut self) -> *mut PageMap {
+        self as *mut PageMap
     }
 }
 
@@ -247,11 +250,11 @@ pub(super) unsafe fn get_cur() -> *mut PageMap {
         "mov {out}, cr3",
         out = out(reg) out
     );
-    out as *mut PageMap
+    hhdm::to_virt(out as *const _) as *mut _
 }
 
 pub fn new_page_map() -> *mut PageMap {
-    pmm::alloc_pages_zeroed(1) as *mut PageMap
+    hhdm::to_virt(pmm::alloc_pages_zeroed(1)) as *mut _
 }
 
 pub unsafe fn alloc_pages(map: *mut PageMap, virt: u64, pages: usize, phys: u64) {
@@ -265,7 +268,7 @@ pub unsafe fn alloc_large_pages(map: *mut PageMap, virt: u64, pages: usize, phys
 pub unsafe fn free_pages(_map: *mut PageMap, _virt: u64, _count: usize) {}
 
 pub unsafe fn install(map: *mut PageMap) {
-    PageMap::install_ptr(map)
+    PageMap::install_ptr(hhdm::to_phys(map as *mut _) as *mut PageMap)
 }
 
 pub unsafe fn get_page_entry(map: *mut PageMap, virt: u64) -> Option<*mut PageMapEntry> {

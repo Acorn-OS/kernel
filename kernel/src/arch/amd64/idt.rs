@@ -1,6 +1,3 @@
-use crate::mm::pmm;
-use crate::mm::vmm::VirtualMemory;
-
 use super::gdt::KERNEL_CODE_SELECTOR;
 use core::arch::asm;
 use core::mem::size_of;
@@ -13,7 +10,7 @@ enum GateType {
 
 bitfield! {
     #[derive(Clone, Copy)]
-    struct IdtEntry(u128) {
+    struct IDTEntry(u128) {
         offset_lo: u64 @ 0..=15,
         offset_hi: u64 @ 48..=95,
         segment_selector: u16 @ 16..=31,
@@ -24,7 +21,7 @@ bitfield! {
     }
 }
 
-impl IdtEntry {
+impl IDTEntry {
     fn offset(&self) -> u64 {
         self.offset_lo() | (self.offset_hi() << 16)
     }
@@ -42,19 +39,19 @@ impl IdtEntry {
 }
 
 #[repr(C, align(16))]
-pub struct Idt {
-    entries: [IdtEntry; 256],
+pub struct IDT {
+    entries: [IDTEntry; 256],
 }
 
-impl Idt {
+impl IDT {
     pub fn new() -> Self {
-        let mut idt = Idt {
-            entries: [IdtEntry(0); 256],
+        let mut idt = IDT {
+            entries: [IDTEntry(0); 256],
         };
         macro_rules! except {
             ($index:literal, $func:ident) => {
                 idt.set_entry($index, {
-                    let mut entry = IdtEntry(0);
+                    let mut entry = IDTEntry(0);
                     entry.set_offset($func as u64);
                     entry.set_p(true);
                     entry.set_segment_selector(KERNEL_CODE_SELECTOR);
@@ -66,7 +63,7 @@ impl Idt {
         macro_rules! int {
             ($index:literal, $func:ident) => {
                 idt.set_entry($index, {
-                    let mut entry = IdtEntry(0);
+                    let mut entry = IDTEntry(0);
                     entry.set_offset($func as u64);
                     entry.set_p(true);
                     entry.set_segment_selector(KERNEL_CODE_SELECTOR);
@@ -126,7 +123,7 @@ impl Idt {
         int!(47, irq_handler_47);
         for i in 48..=255 {
             idt.set_entry(i, {
-                let mut entry = IdtEntry(0);
+                let mut entry = IDTEntry(0);
                 entry.set_offset(&unimp as *const _ as u64);
                 entry.set_p(true);
                 entry.set_segment_selector(KERNEL_CODE_SELECTOR);
@@ -144,7 +141,7 @@ impl Idt {
             offset: u64,
         }
         let idtr = IDTR {
-            size: size_of::<Idt>() as u16 - 1,
+            size: size_of::<IDT>() as u16 - 1,
             offset: self as *const _ as u64,
         };
         asm!(
@@ -153,14 +150,7 @@ impl Idt {
         )
     }
 
-    fn set_entry(&mut self, index: u8, entry: IdtEntry) {
+    fn set_entry(&mut self, index: u8, entry: IDTEntry) {
         self.entries[index as usize] = entry;
     }
-}
-
-pub unsafe fn new(map: &mut VirtualMemory) -> *mut Idt {
-    let pages = size_of::<Idt>().div_ceil(pmm::PAGE_SIZE);
-    let ptr = map.map_pages(pages, pmm::alloc_pages(pages) as u64) as *mut Idt;
-    ptr.write(Idt::new());
-    ptr
 }

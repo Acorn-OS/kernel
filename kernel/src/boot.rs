@@ -12,16 +12,29 @@ static LIMINE_MMAP: limine::LimineMemmapRequest = limine::LimineMemmapRequest::n
 #[limine_tag]
 static LIMINE_RDSP: limine::LimineRsdpRequest = limine::LimineRsdpRequest::new(0);
 
-pub unsafe fn kernel_address() -> &'static mut limine::LimineKernelAddressResponse {
-    LIMINE_KERNEL_ADDRESS.get_response().get_mut().unwrap()
+#[limine_tag]
+static LIMINE_HHDM: limine::LimineHhdmRequest = limine::LimineHhdmRequest::new(0);
+
+pub struct BootInfo {
+    pub kernel_address: &'static limine::LimineKernelAddressResponse,
+    pub rsdp: &'static limine::LimineRsdpResponse,
+    pub mmap: &'static mut MMap,
+    pub hhdm: &'static limine::LimineHhdmResponse,
 }
 
-pub unsafe fn rsdp() -> &'static mut limine::LimineRsdpResponse {
-    LIMINE_RDSP.get_response().get_mut().unwrap()
+impl BootInfo {
+    pub unsafe fn get() -> BootInfo {
+        Self {
+            kernel_address: LIMINE_KERNEL_ADDRESS.get_response().get().unwrap(),
+            rsdp: LIMINE_RDSP.get_response().get().unwrap(),
+            mmap: LIMINE_MMAP.get_response().get_mut().unwrap(),
+            hhdm: LIMINE_HHDM.get_response().get().unwrap(),
+        }
+    }
 }
 
-pub unsafe fn get_mmap() -> &'static mut MMap {
-    LIMINE_MMAP.get_response().get_mut().unwrap()
+pub unsafe fn info() -> BootInfo {
+    BootInfo::get()
 }
 
 /// Initialize all constructor functions

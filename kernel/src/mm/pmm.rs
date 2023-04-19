@@ -1,5 +1,4 @@
-use super::vmm::VirtualMemory;
-use crate::boot;
+use crate::boot::BootInfo;
 use core::ptr::null_mut;
 use core::slice;
 
@@ -11,23 +10,28 @@ type AllocatorTy = bitmap::BitMapPtrAllocator<PAGE_EXP>;
 static mut ALLOCATED_PAGES: usize = 0;
 static ALLOCATOR: AllocatorTy = unsafe { AllocatorTy::new(null_mut(), 0, null_mut()) };
 
-pub fn alloc_pages(count: usize) -> *mut u8 {
+#[repr(C, align(4096))]
+pub struct Page([u8; PAGE_SIZE]);
+
+pub fn alloc_pages(count: usize) -> *const Page {
     ALLOCATOR
         .alloc_pages(count)
-        .expect("failed to allocate physical memory")
+        .expect("failed to allocate physical memory") as *const Page
 }
 
-pub fn alloc_pages_zeroed(count: usize) -> *mut u8 {
-    let ptr = alloc_pages(count);
+pub fn alloc_pages_zeroed(count: usize) -> *const Page {
+    let ptr = ALLOCATOR
+        .alloc_pages(count)
+        .expect("failed to allocate physical memory");
     unsafe { ptr.write_bytes(0, count << PAGE_EXP) };
-    ptr
+    ptr as *mut _
 }
 
-pub fn free_pages(ptr: *mut u8, count: usize) {
-    ALLOCATOR.free_pages(ptr, count)
+pub fn free_pages(ptr: *const Page, count: usize) {
+    ALLOCATOR.free_pages(ptr as *mut _, count)
 }
 
-pub unsafe fn init(mmap: &mut boot::MMap) {
+pub unsafe fn init(boot_info: &mut BootInfo) {
     fn align_floor(val: usize, align: usize) -> usize {
         val.div_floor(align) * align
     }
@@ -35,7 +39,7 @@ pub unsafe fn init(mmap: &mut boot::MMap) {
     fn align_ceil(val: usize, align: usize) -> usize {
         val.div_ceil(align) * align
     }
-
+    let mmap = &mut boot_info.mmap;
     let count = mmap.entry_count;
     let entries = slice::from_raw_parts_mut(mmap.entries.as_ptr(), count as usize);
     let mut found = false;

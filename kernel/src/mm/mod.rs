@@ -1,4 +1,4 @@
 pub mod heap;
+pub mod hhdm;
 pub mod pmm;
-pub mod ptr;
 pub mod vmm;

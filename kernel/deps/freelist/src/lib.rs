@@ -223,7 +223,7 @@ impl<A: Allocator> FreeList<A> {
             while !cur.is_null() {
                 let cur_start = (*cur).start;
                 let cur_len = (*cur).len;
-                let cur_end = cur_start + cur_len as u64;
+                let cur_end = cur_start + (cur_len.saturating_sub(1)) as u64;
                 if start >= cur_start && end <= cur_end {
                     let left_beg = cur_start;
                     let left_len = start - left_beg;

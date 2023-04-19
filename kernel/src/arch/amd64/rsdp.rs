@@ -1,7 +1,7 @@
-use crate::boot;
+use crate::boot::BootInfo;
 
 #[repr(C, packed)]
-pub struct Rdsp {
+pub struct RDSP {
     pub signature: [char; 8],
     pub checksum: u8,
     pub oem_id: [char; 8],
@@ -13,17 +13,12 @@ pub struct Rdsp {
     reserved: [u8; 3],
 }
 
-pub fn get() -> &'static Rdsp {
-    debug!("RDSP address: {:016X}", unsafe {
-        boot::rsdp()
-            .address
-            .as_ptr()
-            .expect("cannot get RDSP address!") as usize
-    });
+pub fn get(boot_info: &BootInfo) -> &'static RDSP {
     unsafe {
-        &*(boot::rsdp()
+        &*(boot_info
+            .rsdp
             .address
             .as_ptr()
-            .expect("cannot get RDSP address!") as *const Rdsp)
+            .expect("cannot get RDSP address!") as *const RDSP)
     }
 }

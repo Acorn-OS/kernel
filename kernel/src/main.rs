@@ -32,6 +32,7 @@ extern crate alloc;
 mod arch;
 mod boot;
 mod drivers;
+mod fs;
 mod logging;
 mod mm;
 mod panic;
@@ -39,8 +40,7 @@ mod util;
 
 fn main() -> ! {
     info!("entered kernel main...");
-    //drivers::vga::puts("hello vga!");
-    //util::irq_en();
+    util::irq_en();
     loop {
         util::halt();
     }

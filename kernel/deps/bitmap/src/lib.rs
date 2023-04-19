@@ -210,7 +210,7 @@ pub struct BitMapPtrAllocator<const EXPONENT: usize> {
 unsafe impl<const EXPONENT: usize> Sync for BitMapPtrAllocator<EXPONENT> {}
 
 impl<const EXPONENT: usize> BitMapPtrAllocator<EXPONENT> {
-    const PAGE_SIZE: usize = BitMapPtr::<EXPONENT>::PAGE_SIZE;
+    pub const PAGE_SIZE: usize = BitMapPtr::<EXPONENT>::PAGE_SIZE;
 
     pub const unsafe fn new(bitmap_base: *mut u8, bitmap_len: usize, alloc_base: *mut u8) -> Self {
         Self {

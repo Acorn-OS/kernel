@@ -1,2 +1,5 @@
 [alias]
 qemu = "cargo run"
+
+[build]
+target-dir = "../build/artf/scripts"

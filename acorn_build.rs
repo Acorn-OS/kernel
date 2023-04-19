@@ -1,125 +1,250 @@
+#![feature(vec_into_raw_parts)]
+
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-const BUILD_DIR: &str = "build";
+mod path {
+    use super::*;
+
+    pub fn create_paths() {
+        assert!(
+            Command::new("rm")
+                .arg("-rf")
+                .arg("isoroot")
+                .status()
+                .expect("failed to run command")
+                .success(),
+            "failed to remove {}",
+            "isoroot"
+        );
+        fs::create_dir_all("isoroot").expect("failed to create isoroot directory");
+        fs::create_dir_all("build").expect("failed to create build directory");
+    }
+
+    pub fn build() -> PathBuf {
+        PathBuf::from("build")
+            .canonicalize()
+            .expect("failed to canonicalize build path")
+    }
+
+    pub fn isoroot() -> PathBuf {
+        PathBuf::from("isoroot")
+            .canonicalize()
+            .expect("failed to canonicalize isoroot path")
+    }
+}
 
 fn cargo() -> Command {
     Command::new("cargo")
 }
 
+fn tool(name: &str) -> Command {
+    Command::new(format!("{}/tools/{name}", path::build().display()))
+}
+
+mod thirdparty {
+    macro_rules! thirdparty_str {
+        ($name:literal) => {
+            concat!("thirdparty/", $name)
+        };
+    }
+    pub mod limine {
+        macro_rules! limine_str {
+            ($name:literal) => {
+                concat!(thirdparty_str!("limine/"), $name)
+            };
+        }
+        pub const LIMINE_CFG: &str = limine_str!("limine.cfg");
+        pub const LIMINE_SYS: &str = limine_str!("limine.sys");
+    }
+}
+
 struct Builder {
     path: PathBuf,
-    build_path: PathBuf,
+    out_path: Option<PathBuf>,
+    unstable: bool,
 }
 
 struct BuildOutput {}
 
 impl Builder {
-    fn new(path: PathBuf) -> Self {
-        Self {
-            path,
-            build_path: PathBuf::from(BUILD_DIR)
-                .canonicalize()
-                .expect("missing build directory"),
+    fn set_from_flags(&self, cmd: &mut Command) {
+        if self.unstable {
+            cmd.args(["-Z", "unstable-options"]);
+        }
+        if let Some(out_path) = self.out_path.as_ref() {
+            cmd.arg("--out-dir").arg(out_path);
         }
     }
 
     fn build(&self) -> BuildOutput {
-        macro_rules! cmd {
-            () => {{
+        assert!(
+            {
                 let mut cmd = cargo();
                 cmd.arg("build").current_dir(&self.path);
-                cmd
-            }};
-        }
-
-        assert!(
-            cmd!()
-                .args(["-Z", "unstable-options"])
-                .arg("--out-dir")
-                .arg(&self.build_path)
-                .status()
-                .expect("failed to build kernel")
-                .success(),
+                self.set_from_flags(&mut cmd);
+                cmd.status().expect("failed to build kernel").success()
+            },
             "failed to build kernel: failed status"
         );
         BuildOutput {}
     }
 }
 
-fn main() {
-    fs::create_dir_all("isoroot").expect("failed to create isoroot directory");
-    fs::create_dir_all("build").expect("failed to create build directory");
-    let kernel_builder = Builder::new(PathBuf::from("kernel"));
-    kernel_builder.build();
-    fs::create_dir_all("isoroot/boot").expect("failed");
-    assert!(
-        Command::new("rm")
-            .arg("-rf")
-            .arg(format!("{BUILD_DIR}/*"))
-            .status()
-            .expect("failed to run command")
-            .success(),
-        "failed to clean {BUILD_DIR}"
-    );
-    assert!(
-        Command::new("rm")
-            .arg("-rf")
-            .arg(format!("isoroot/*"))
-            .status()
-            .expect("failed to run command")
-            .success(),
-        "failed to clean {BUILD_DIR}"
-    );
-    fs::copy("build/kernel", "isoroot/boot/acorn.elf").expect("failed to copy kernel");
-    fs::copy("limine.cfg", "isoroot/boot/limine.cfg").expect("failed to copy limine.cfg");
-    fs::copy("thirdparty/limine/limine.sys", "isoroot/boot/limine.sys")
-        .expect("failed to copy limine.sys");
-    let image = PathBuf::from("build/image");
-    assert!(
-        Command::new("fallocate")
-            .args(["-l", "1G"])
-            .arg(&image)
-            .status()
-            .expect("failed to run command")
-            .success(),
-        "failed to fallocate {}",
-        image.display()
-    );
-    assert!(
-        Command::new("parted")
-            .arg("-s")
-            .arg(&image)
-            .args(["mklabel", "msdos", "mkpart", "primary", "ext2", "1", "100%"])
-            .status()
-            .expect("failed to run command")
-            .success(),
-        "failed call to parted"
-    );
-    assert!(
-        Command::new("mkfs.ext2")
-            .arg(&image)
-            .args(["-d", "isoroot"])
-            .args(["-E", "offset=1048576"])
-            .status()
-            .expect("failed to run command")
-            .success(),
-        "failed to format partition"
-    );
-    assert!(
-        Command::new("thirdparty/limine/limine-deploy")
-            .arg(&image)
-            .arg("--quiet")
-            .status()
-            .expect("failed to run command")
-            .success(),
-        "failed to deploy limine"
-    );
+struct Projects {
+    kernel_elf: PathBuf,
+}
+
+impl Projects {
+    pub fn build() -> Self {
+        let kernel_out_path = path::build();
+        let kernel_builder = Builder {
+            path: PathBuf::from("kernel"),
+            unstable: true,
+            out_path: Some(kernel_out_path.clone()),
+        };
+        kernel_builder.build();
+        let tools_out_path: PathBuf = format!("{}/tools", path::build().display()).into();
+        let tools_builder = Builder {
+            path: PathBuf::from("tools"),
+            unstable: true,
+            out_path: Some(tools_out_path),
+        };
+        tools_builder.build();
+        Self {
+            kernel_elf: format!("{}/kernel", kernel_out_path.display()).into(),
+        }
+    }
+}
+
+struct ISORoot;
+
+impl ISORoot {
+    fn create(kernel_elf: &Path, limine_cfg: &Path, limine_sys: &Path) -> Self {
+        fs::create_dir_all(format!("{}/boot", path::isoroot().display()))
+            .expect("failed to create boot subdirectory");
+        fs::create_dir_all(format!("{}/modules", path::isoroot().display()))
+            .expect("failed to create modules subdirectory");
+        let isoroot = Self;
+        isoroot.put("boot/acorn.elf", kernel_elf);
+        isoroot.put("boot/limine.cfg", limine_cfg);
+        isoroot.put("boot/limine.sys", limine_sys);
+        isoroot
+    }
+
+    fn put_module(&self, file: &Path) {
+        let path = format!(
+            "modules/{}",
+            file.file_name().expect("invalid file").to_string_lossy()
+        );
+        if self.exists(&path) {
+            panic!("overwriting module");
+        }
+        self.put(&path, file);
+    }
+
+    fn put(&self, path: &str, file: &Path) {
+        fs::copy(
+            file.clone(),
+            format!("{}/{path}", path::isoroot().display()),
+        )
+        .expect(&format!(
+            "failed to copy file {} to {}/{path}",
+            file.display(),
+            path::isoroot().display()
+        ));
+    }
+
+    fn exists(&self, path: &str) -> bool {
+        PathBuf::from(format!("{}/{path}", path::isoroot().display())).exists()
+    }
+
+    fn path(&self) -> PathBuf {
+        path::isoroot()
+    }
+}
+
+pub struct Initrd(PathBuf);
+
+impl Initrd {
+    pub fn create(files: Vec<PathBuf>, out_file: PathBuf) -> Initrd {
+        assert!(
+            tool("initrd")
+                .arg("--output")
+                .arg(&out_file)
+                .args(files)
+                .status()
+                .expect("failed to start initrd tool")
+                .success(),
+            "initrd tool ran unsuccessfully"
+        );
+        Self(out_file)
+    }
+
+    pub fn output(&self) -> &Path {
+        &self.0
+    }
+}
+
+struct Image(PathBuf);
+
+impl Image {
+    pub fn create(iso_root: ISORoot) -> Self {
+        let image = PathBuf::from(format!("{}/image", path::build().display()));
+        assert!(
+            Command::new("fallocate")
+                .args(["-l", "1G"])
+                .arg(&image)
+                .status()
+                .expect("failed to run command")
+                .success(),
+            "failed to fallocate {}",
+            image.display()
+        );
+        assert!(
+            Command::new("parted")
+                .arg("-s")
+                .arg(&image)
+                .args(["mklabel", "msdos", "mkpart", "primary", "ext2", "1", "100%"])
+                .status()
+                .expect("failed to run command")
+                .success(),
+            "failed call to parted"
+        );
+        assert!(
+            Command::new("mkfs.ext2")
+                .arg(&image)
+                .arg("-d")
+                .arg(iso_root.path())
+                .args(["-E", "offset=1048576"])
+                .status()
+                .expect("failed to run command")
+                .success(),
+            "failed to format partition"
+        );
+        assert!(
+            Command::new("thirdparty/limine/limine-deploy")
+                .arg(&image)
+                .arg("--quiet")
+                .status()
+                .expect("failed to run command")
+                .success(),
+            "failed to deploy limine"
+        );
+        Self(image)
+    }
+
+    pub fn path(&self) -> &Path {
+        self.0.as_path()
+    }
+}
+
+fn run_qemu(image: Image) {
     let mut qemu_command = Command::new("qemu-system-x86_64");
     qemu_command
         .arg("-drive")
-        .arg(format!("format=raw,file={}", image.display()))
+        .arg(format!("format=raw,file={}", image.path().display()))
         .arg("-s")
         .arg("-S")
         .arg("--no-reboot")
@@ -140,4 +265,21 @@ fn main() {
             .success(),
         "failed to run qemu"
     );
+}
+
+fn main() {
+    path::create_paths();
+    let projects = Projects::build();
+    let iso_root = ISORoot::create(
+        &projects.kernel_elf,
+        &PathBuf::from(thirdparty::limine::LIMINE_CFG),
+        &PathBuf::from(thirdparty::limine::LIMINE_SYS),
+    );
+    let initrd = Initrd::create(
+        vec![PathBuf::from("tools/initrd/src/main.rs")],
+        format!("{}/initrd", path::build().display()).into(),
+    );
+    iso_root.put_module(initrd.output());
+    let image = Image::create(iso_root);
+    run_qemu(image);
 }

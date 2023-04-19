@@ -262,12 +262,14 @@ mod excpt {
 }
 
 mod irq {
+    use crate::arch::amd64::lapic;
+
     use super::*;
 
     #[no_mangle]
     unsafe extern "C" fn irq_timer(stackframe: *mut StackFrame) -> *mut StackFrame {
         info!("timer!");
-        todo!(); // eoi!
+        lapic::eoi();
         stackframe
     }
 }

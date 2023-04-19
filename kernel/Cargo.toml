@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [lib]
 name = "klib"
-path = "klib/lib.rs"
+path = "lib/lib.rs"
 
 [dependencies]
 cfg-if = "1.0.0"
@@ -20,25 +20,25 @@ proc-bitfield = "0.2.2"
 limine = {version = "0.1.10", features = ["requests-section"]}
 
 [dependencies.ctor]
-path = "lib/ctor"
+path = "deps/ctor"
 
 [dependencies.bitmap]
-path = "lib/bitmap"
+path = "deps/bitmap"
 
 [dependencies.bitset]
-path = "lib/bitset"
+path = "deps/bitset"
 
 [dependencies.buddy]
-path = "lib/buddy"
+path = "deps/buddy"
 
 [dependencies.freelist]
-path = "lib/freelist"
+path = "deps/freelist"
 
 [members]
 members = [
-    "lib/ctor",
-    "lib/bitmap",
-    "lib/bitset",
-    "lib/buddy",
-    "lib/freelist",
+    "deps/ctor",
+    "deps/bitmap",
+    "deps/bitset",
+    "deps/buddy",
+    "deps/freelist",
 ]

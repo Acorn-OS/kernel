@@ -4,6 +4,7 @@ build-std-features = ["compiler-builtins-mem"]
 
 [build]
 target = "targets/acorn_amd64.json"
+target-dir = "../build/artf/kernel"
 
 [target.acorn_amd64]
 rustflags = [

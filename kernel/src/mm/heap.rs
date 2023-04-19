@@ -1,11 +1,11 @@
-use super::pmm;
-use super::vmm::VirtualMemory;
+use super::pmm::Page;
+use super::{hhdm, pmm};
 use core::alloc::{Allocator, GlobalAlloc, Layout};
 
-pub const PAGE_SIZE: usize = pmm::PAGE_SIZE;
-pub const PAGE_EXP: usize = pmm::PAGE_EXP;
+pub const PAGE_SIZE: usize = hhdm::PAGE_SIZE;
+pub const PAGE_EXP: usize = hhdm::PAGE_EXP;
 pub const PAGE_COUNT: usize = 256;
-const VIRTUAL_BASE: u64 = 0xffffff8000000000;
+static mut VIRTUAL_BASE: u64 = 0;
 
 #[derive(Default)]
 struct NodeAllocator;
@@ -18,14 +18,14 @@ unsafe impl Allocator for NodeAllocator {
     ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
         Ok(unsafe {
             core::ptr::NonNull::new_unchecked(core::slice::from_raw_parts_mut(
-                pmm::alloc_pages(1),
+                hhdm::to_virt(pmm::alloc_pages(1)) as *mut u8,
                 layout.size(),
             ))
         })
     }
 
     unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, _layout: Layout) {
-        pmm::free_pages(ptr.as_ptr(), 1)
+        pmm::free_pages(hhdm::to_phys(ptr.as_ptr() as *mut Page), 1)
     }
 }
 
@@ -71,11 +71,9 @@ pub unsafe fn dealloc<T>(ptr: *const T) {
 pub struct HeapBaseAddress(u64);
 
 pub unsafe fn init() {
+    let ptr = hhdm::to_virt(pmm::alloc_pages(PAGE_COUNT));
+    VIRTUAL_BASE = ptr as u64;
     GLOBAL_ALLOC
         .push_region(VIRTUAL_BASE, PAGE_COUNT * PAGE_SIZE)
         .expect("unable to push region into global heap");
-}
-
-pub unsafe fn virtually_map(map: &mut VirtualMemory) {
-    map.alloc_pages_with_base_virt(PAGE_COUNT, VIRTUAL_BASE);
 }

@@ -1,9 +1,5 @@
 use core::arch::{asm, global_asm};
 use core::fmt::Debug;
-use core::mem::size_of;
-
-use crate::mm::pmm;
-use crate::mm::vmm::VirtualMemory;
 
 const KERNEL_CODE_ACCESS: u8 = 0x9a;
 const KERNEL_CODE_FLAGS: u8 = 0xa;
@@ -66,12 +62,12 @@ impl Debug for Entry {
 }
 
 #[repr(C, packed)]
-struct Gdtr {
+struct GDTR {
     size: u16,
     adr: u64,
 }
 
-impl Debug for Gdtr {
+impl Debug for GDTR {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("GDTR")
             .field("size", &format_args!("{}", { self.size }))
@@ -82,7 +78,7 @@ impl Debug for Gdtr {
 
 #[derive(Debug)]
 #[repr(C, packed)]
-pub struct Gdt {
+pub struct GDT {
     // 0x00
     null: Entry,
     // 0x08
@@ -95,7 +91,7 @@ pub struct Gdt {
     usrspc_data: Entry,
 }
 
-impl Gdt {
+impl GDT {
     pub fn new() -> Self {
         Self {
             null: Entry::null(),
@@ -117,17 +113,10 @@ impl Gdt {
         set_segments();
     }
 
-    fn to_gdtr(&self) -> Gdtr {
-        Gdtr {
-            size: (core::mem::size_of::<Gdt>() - 1) as u16,
+    fn to_gdtr(&self) -> GDTR {
+        GDTR {
+            size: (core::mem::size_of::<GDT>() - 1) as u16,
             adr: self as *const _ as u64,
         }
     }
-}
-
-pub unsafe fn new(map: &mut VirtualMemory) -> *mut Gdt {
-    let pages = size_of::<Gdt>().div_ceil(pmm::PAGE_SIZE);
-    let ptr = map.map_pages(pages, pmm::alloc_pages(pages) as u64) as *mut Gdt;
-    ptr.write(Gdt::new());
-    ptr
 }

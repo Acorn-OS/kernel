@@ -3,6 +3,11 @@
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
         "kernel/Cargo.toml",
+        "tools/Cargo.toml",
+    ],
+    "rust-analyzer.files.excludeDirs": [
+        "build",
+        "thirdparty"
     ],
     "rust-analyzer.showUnlinkedFileNotification": false
 }

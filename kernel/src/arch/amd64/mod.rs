@@ -1,4 +1,4 @@
-pub mod cpu;
+pub mod cpuc;
 pub mod fb;
 pub mod serial;
 pub mod vm;

@@ -1,4 +1,4 @@
-use super::msr;
+use super::{cpuc, msr};
 use crate::mm::vmm::VirtualMemory;
 
 const BASE_LAPIC_MSR: u32 = 0x1b;
@@ -8,7 +8,7 @@ fn get_local_apic_base_adr() -> u64 {
 }
 
 fn set_local_apic_base_adr(_v: u64) {
-    todo!()
+    unimplemented!()
 }
 
 fn toggle_enabled_local_apic(v: bool) {
@@ -18,9 +18,9 @@ fn toggle_enabled_local_apic(v: bool) {
 }
 
 #[derive(Clone, Copy)]
-pub struct LApicPtr(u64);
+pub struct LAPICPtr(u64);
 
-impl LApicPtr {
+impl LAPICPtr {
     const ID: u16 = 0x20;
     const VER: u16 = 0x30;
     const TASK_PRIO: u16 = 0x80;
@@ -58,25 +58,29 @@ impl LApicPtr {
     }
 
     pub unsafe fn eoi(self) {
-        self.write_reg(LApicPtr::EOI, 0);
+        self.write_reg(LAPICPtr::EOI, 0);
     }
 }
 
-pub unsafe fn create_local(page_map: &mut VirtualMemory) -> LApicPtr {
+#[must_use]
+pub unsafe fn create_local(page_map: &mut VirtualMemory) -> LAPICPtr {
     let phys_adr = get_local_apic_base_adr();
     let virt = page_map.map_pages(1, phys_adr);
     toggle_enabled_local_apic(true);
-    let ptr = LApicPtr(virt as u64);
+    let ptr = LAPICPtr(virt as u64);
     // enables the lapic.
     ptr.write_reg(
-        LApicPtr::SPURIUOS_INT_VEC,
-        ptr.read_reg(LApicPtr::SPURIUOS_INT_VEC) | 0x1FF,
+        LAPICPtr::SPURIUOS_INT_VEC,
+        ptr.read_reg(LAPICPtr::SPURIUOS_INT_VEC) | 0x1FF,
     );
-    ptr.write_reg(LApicPtr::INIT_CNT, 0x100000);
-    ptr.write_reg(LApicPtr::DIV_CONF, 0b1011);
-    ptr.write_reg(
-        LApicPtr::LVT_TIMER,
-        0x20 | (0b01 << 17) | (1 << 16), /* mask the irq */
-    );
+    ptr.write_reg(LAPICPtr::INIT_CNT, 0x100000);
+    ptr.write_reg(LAPICPtr::DIV_CONF, 0b1011);
+    ptr.write_reg(LAPICPtr::LVT_TIMER, 0x20 | (0b01 << 17) | (1 << 16));
     ptr
+}
+
+pub unsafe fn eoi() {
+    let ptr = cpuc::get();
+    debug_assert!(!ptr.is_null(), "cpuc ptr is null");
+    (*ptr).lapic_ptr.eoi();
 }
