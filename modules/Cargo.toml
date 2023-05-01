@@ -1,2 +1,5 @@
 [workspace]
-members = []
+members = [
+    "core/test_bin", # Test
+    "core/ps2",
+]

@@ -236,7 +236,14 @@ impl<const EXPONENT: usize> BitMapPtrAllocator<EXPONENT> {
             for i in 0..count {
                 lock.bitmap.alloc(index + i);
             }
-            Ok(unsafe { lock.alloc_base.add(Self::PAGE_SIZE * index) })
+            let adr = unsafe { lock.alloc_base.add(Self::PAGE_SIZE * index) };
+            #[cfg(feature = "log")]
+            log::debug!(
+                "bitmap(0x{:016x}) alloc: {:016x}",
+                self as *const _ as u64,
+                adr as u64
+            );
+            Ok(adr)
         } else {
             Err(Error::OutOfSpace)
         }
@@ -250,6 +257,12 @@ impl<const EXPONENT: usize> BitMapPtrAllocator<EXPONENT> {
         for i in 0..count {
             lock.bitmap.free(index + i);
         }
+        #[cfg(feature = "log")]
+        log::debug!(
+            "bitmap(0x{:016x}) free: {:016x}",
+            self as *const _ as u64,
+            ptr as u64
+        );
     }
 
     fn alloc_layout(&self, layout: Layout) -> Result<*mut u8> {

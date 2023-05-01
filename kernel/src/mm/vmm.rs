@@ -1,53 +1,16 @@
-use crate::arch::cpuc;
-use crate::arch::vm::{self, PageMap};
+use super::pmm::Page;
+use crate::arch::vm::{self, PageMapPtr};
 use crate::boot;
 use crate::mm::pmm;
-use alloc::slice;
-use bitmap::BitMap;
-use core::alloc::{AllocError, Allocator, Layout};
-use core::cell::UnsafeCell;
+use alloc::alloc::Global;
 use core::fmt::Debug;
-use core::ptr::NonNull;
-
-use super::hhdm;
-use super::pmm::Page;
 
 pub const PAGE_SIZE: usize = pmm::PAGE_SIZE;
 
-struct NodeBitMapAllocator {
-    bitmap: UnsafeCell<BitMap<3, { PAGE_SIZE >> 3 }>>,
-    base: *mut u8,
-}
-
-unsafe impl Allocator for NodeBitMapAllocator {
-    fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        assert_eq_align!(freelist::Node, u64);
-        let bitmap = unsafe { &mut *self.bitmap.get() };
-        let pages = layout.size().div_ceil(bitmap.page_size());
-        let index = bitmap.get_first_empty(pages).ok_or(AllocError)?;
-        for i in 0..pages {
-            bitmap.alloc(index + i)
-        }
-        let ptr = unsafe { self.base.add(index * (*self.bitmap.get()).page_size()) };
-        Ok(unsafe {
-            NonNull::new_unchecked(slice::from_raw_parts_mut(ptr, pages * bitmap.page_size()))
-        })
-    }
-
-    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        let bitmap = &mut *self.bitmap.get();
-        let index = ((ptr.as_ptr() as usize) - self.base as usize) / bitmap.page_size();
-        let count = layout.size() / bitmap.page_size();
-        for i in 0..count {
-            bitmap.free(index + i)
-        }
-    }
-}
-
-type AllocatorTy = freelist::FreeList<NodeBitMapAllocator>;
+type AllocatorTy = freelist::FreeList<Global>;
 
 pub struct VirtualMemory {
-    root_map: *mut PageMap,
+    root_map: PageMapPtr,
     allocator: AllocatorTy,
 }
 
@@ -102,56 +65,47 @@ impl VirtualMemory {
     pub unsafe fn install(&self) {
         vm::install(self.root_map)
     }
+
+    pub fn new_kernel() -> Self {
+        let mut map = VirtualMemory {
+            allocator: unsafe { AllocatorTy::with_allocator(Global) },
+            root_map: vm::new_page_map(),
+        };
+        // Push allocatable region.
+        map.allocator
+            .push_region(0xffff800000000000, 1 << 47)
+            .expect("failed to push map allocator region");
+        // Memory map physical memory as HHDM.
+        unsafe { vm::alloc_large_pages(map.root_map, pmm::hhdm_base(), 4, 0) };
+        map.allocator
+            .reserve_bytes(pmm::hhdm_base(), 4 * (1 << 30))
+            .expect("failed to reserve bytes for kernel vmm");
+        // Map kernel to high address.
+        let s4kib = 4 << 10;
+        let kernel_large_page_count = 2;
+        let kernel_page_count = 4096 * 4; //(kernel_large_page_count << 30) / s4kib;
+        let kernel_phys_adr = unsafe { boot::info().kernel_address.physical_base };
+        let kernel_virt_adr = 0xffffffff80000000;
+        unsafe { map.map_pages_raw(kernel_page_count, kernel_virt_adr, kernel_phys_adr) };
+        map
+    }
+
+    pub fn new_userland() -> Self {
+        let mut map = new_kernel();
+        //Push allocatable region.
+        let start = 1 << 20;
+        let len = (1 << 47) - start;
+        map.allocator
+            .push_region(start, len as usize)
+            .expect("failed to push map allocator region");
+        map
+    }
 }
 
 pub fn new_kernel() -> VirtualMemory {
-    let mut map = VirtualMemory {
-        allocator: unsafe {
-            AllocatorTy::with_allocator(NodeBitMapAllocator {
-                bitmap: UnsafeCell::new(BitMap::new()),
-                base: hhdm::to_virt(pmm::alloc_pages(1)) as *mut _,
-            })
-        },
-        root_map: vm::new_page_map(),
-    };
-    // Identity map the initial 4GiB of physical memory.
-    unsafe { vm::alloc_large_pages(map.root_map, 0, 4, 0) };
-    // Memory map the initial 4GiB of HHDM.
-    unsafe { vm::alloc_large_pages(map.root_map, hhdm::base(), 4, 0) };
-    // Push allocatable region.
-    map.allocator
-        .push_region(0xffff800000000000, 1 << 47)
-        .expect("failed to push map allocator region");
-    // Reserve HHDM direct map.
-    map.allocator
-        .reserve_bytes(hhdm::base(), hhdm::size())
-        .expect("failed to reserve bytes for kernel vmm");
-    // Map kernel to high address.
-    let s4kib = 4 << 10;
-    let page_count = (30 << 20) / s4kib;
-    let phys_adr = unsafe { boot::info().kernel_address.physical_base };
-    let virt_adr = 0xffffffff80000000;
-    unsafe { map.map_pages_raw(page_count, virt_adr, phys_adr) };
-    map
+    VirtualMemory::new_kernel()
 }
 
 pub fn new_userland() -> VirtualMemory {
-    todo!()
-}
-
-fn get() -> *mut VirtualMemory {
-    let ptr = cpuc::get();
-    debug_assert!(!ptr.is_null());
-    let ptr = unsafe { (*ptr).vmm() };
-    debug_assert!(!ptr.is_null());
-    ptr
-}
-
-pub fn alloc(count: usize) -> *mut Page {
-    let ptr = get();
-    unsafe { (*ptr).alloc_pages(count) }
-}
-
-pub fn free(_ptr: *mut Page, _count: usize) {
-    unimplemented!()
+    VirtualMemory::new_userland()
 }

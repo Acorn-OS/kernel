@@ -1,2 +1,7 @@
+[unstable]
+build-std = ["core", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
 [build]
 target-dir = "../build/artf/modules"
+target = "../kernel/targets/acorn_amd64.json"

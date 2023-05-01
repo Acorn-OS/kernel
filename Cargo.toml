@@ -9,4 +9,3 @@ name = "acorn_build"
 path = "acorn_build.rs"
 
 [dependencies]
-json = "0.12.4"

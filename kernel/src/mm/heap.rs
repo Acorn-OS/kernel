@@ -1,79 +1,70 @@
-use super::pmm::Page;
-use super::{hhdm, pmm};
-use core::alloc::{Allocator, GlobalAlloc, Layout};
+use super::pmm;
+use alloc::alloc::Global;
+use bitmap::BitMapPtrAllocator;
+use core::alloc::{Allocator, Layout};
+use core::ptr::{null_mut, NonNull};
 
-pub const PAGE_SIZE: usize = hhdm::PAGE_SIZE;
-pub const PAGE_EXP: usize = hhdm::PAGE_EXP;
-pub const PAGE_COUNT: usize = 256;
-static mut VIRTUAL_BASE: u64 = 0;
+const PAGE_COUNT: usize = 256;
 
-#[derive(Default)]
-struct NodeAllocator;
-
-unsafe impl Allocator for NodeAllocator {
-    /* TODO: optimize for space */
-    fn allocate(
-        &self,
-        layout: Layout,
-    ) -> Result<core::ptr::NonNull<[u8]>, core::alloc::AllocError> {
-        Ok(unsafe {
-            core::ptr::NonNull::new_unchecked(core::slice::from_raw_parts_mut(
-                hhdm::to_virt(pmm::alloc_pages(1)) as *mut u8,
-                layout.size(),
-            ))
-        })
-    }
-
-    unsafe fn deallocate(&self, ptr: core::ptr::NonNull<u8>, _layout: Layout) {
-        pmm::free_pages(hhdm::to_phys(ptr.as_ptr() as *mut Page), 1)
-    }
-}
-
+type NodeAllocator = BitMapPtrAllocator<3>;
 type AllocatorTy = freelist::FreeListAllocator<NodeAllocator>;
 
 #[global_allocator]
-static GLOBAL_ALLOC: AllocatorTy = unsafe { AllocatorTy::with_allocator(NodeAllocator) };
+static mut GLOBAL_ALLOC: AllocatorTy =
+    unsafe { AllocatorTy::with_allocator(NodeAllocator::new(null_mut(), 0, null_mut())) };
 
-pub unsafe fn alloc_bytes(count: usize) -> *mut u8 {
+pub unsafe fn alloc_bytes(count: usize) -> NonNull<u8> {
     debug_assert!(count <= isize::MAX as usize);
-    GlobalAlloc::alloc(&GLOBAL_ALLOC, Layout::from_size_align_unchecked(count, 1))
+    Global
+        .allocate(Layout::from_size_align_unchecked(count, 1))
+        .expect("failed")
+        .cast::<u8>()
 }
 
-pub unsafe fn free_bytes(ptr: *mut u8, count: usize) {
+pub unsafe fn free_bytes(ptr: NonNull<u8>, count: usize) {
     debug_assert!(count <= isize::MAX as usize);
-    GlobalAlloc::dealloc(
-        &GLOBAL_ALLOC,
-        ptr,
-        Layout::from_size_align_unchecked(count, 1),
-    )
+    Global.deallocate(ptr, Layout::from_size_align_unchecked(count, 1))
 }
 
-unsafe fn alloc_layout(layout: Layout) -> *mut u8 {
-    GlobalAlloc::alloc(&GLOBAL_ALLOC, layout)
+fn alloc_layout(layout: Layout) -> NonNull<u8> {
+    Global
+        .allocate(layout)
+        .expect(&format!("failed to allocate with layout '{layout:?}'"))
+        .cast::<u8>()
 }
 
-unsafe fn dealloc_layout(ptr: *mut u8, layout: Layout) {
-    GlobalAlloc::dealloc(&GLOBAL_ALLOC, ptr, layout);
+fn dealloc_layout(ptr: NonNull<u8>, layout: Layout) {
+    unsafe { Global.deallocate(ptr, layout) }
 }
 
-pub unsafe fn alloc<T>(val: T) -> *mut T {
+pub fn alloc<T>(val: T) -> NonNull<T> {
     let layout = Layout::new::<T>();
-    let ptr = alloc_layout(layout) as *mut T;
-    ptr.write(val);
+    let ptr = alloc_layout(layout).cast::<T>();
+    unsafe {
+        ptr.as_ptr().write(val);
+    }
     ptr
 }
 
-pub unsafe fn dealloc<T>(ptr: *const T) {
+pub fn dealloc<T>(ptr: *const T) {
+    debug_assert!(!ptr.is_null());
     let layout = Layout::new::<T>();
-    dealloc_layout(ptr as *mut u8, layout)
+    dealloc_layout(unsafe { NonNull::new_unchecked(ptr as *mut u8) }, layout)
 }
 
-pub struct HeapBaseAddress(u64);
-
 pub unsafe fn init() {
-    let ptr = hhdm::to_virt(pmm::alloc_pages(PAGE_COUNT));
-    VIRTUAL_BASE = ptr as u64;
+    let bitmap_len = pmm::PAGE_SIZE;
+    let bitmap_base = pmm::alloc_pages(bitmap_len.div_ceil(pmm::PAGE_SIZE * 8));
+    let bitmap_alloc =
+        pmm::alloc_pages((bitmap_len * NodeAllocator::PAGE_SIZE).div_floor(pmm::PAGE_SIZE));
+    GLOBAL_ALLOC = AllocatorTy::with_allocator(BitMapPtrAllocator::new(
+        bitmap_base.as_virt_ptr(),
+        bitmap_len,
+        bitmap_alloc.as_virt_ptr(),
+    ));
+    let virtual_base = pmm::alloc_pages(PAGE_COUNT).virt_adr();
+    info!("heap virtual base 0x{virtual_base:016x} and 0x{PAGE_COUNT:x} pages");
     GLOBAL_ALLOC
-        .push_region(VIRTUAL_BASE, PAGE_COUNT * PAGE_SIZE)
+        .push_region(virtual_base, PAGE_COUNT * pmm::PAGE_SIZE)
         .expect("unable to push region into global heap");
 }

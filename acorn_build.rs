@@ -86,7 +86,8 @@ impl Builder {
                 self.set_from_flags(&mut cmd);
                 cmd.status().expect("failed to build kernel").success()
             },
-            "failed to build kernel: failed status"
+            "failed to build '{}': failed status",
+            self.path.display()
         );
         BuildOutput {}
     }
@@ -99,19 +100,26 @@ struct Projects {
 impl Projects {
     pub fn build() -> Self {
         let kernel_out_path = path::build();
-        let kernel_builder = Builder {
+        Builder {
             path: PathBuf::from("kernel"),
             unstable: true,
             out_path: Some(kernel_out_path.clone()),
-        };
-        kernel_builder.build();
+        }
+        .build();
         let tools_out_path: PathBuf = format!("{}/tools", path::build().display()).into();
-        let tools_builder = Builder {
+        Builder {
             path: PathBuf::from("tools"),
             unstable: true,
             out_path: Some(tools_out_path),
-        };
-        tools_builder.build();
+        }
+        .build();
+        let modules_out_path: PathBuf = format!("{}/modules", path::build().display()).into();
+        Builder {
+            path: PathBuf::from("modules"),
+            unstable: true,
+            out_path: Some(modules_out_path),
+        }
+        .build();
         Self {
             kernel_elf: format!("{}/kernel", kernel_out_path.display()).into(),
         }
@@ -168,12 +176,12 @@ impl ISORoot {
 pub struct Initrd(PathBuf);
 
 impl Initrd {
-    pub fn create(files: Vec<PathBuf>, out_file: PathBuf) -> Initrd {
+    pub fn create(files: Vec<impl Into<PathBuf>>, out_file: PathBuf) -> Initrd {
         assert!(
             tool("initrd")
                 .arg("--output")
                 .arg(&out_file)
-                .args(files)
+                .args(files.into_iter().map(|e| Into::<PathBuf>::into(e)))
                 .status()
                 .expect("failed to start initrd tool")
                 .success(),
@@ -267,6 +275,20 @@ fn run_qemu(image: Image) {
     );
 }
 
+#[test]
+fn test() {
+    fn cargo_test(dir: &str) {
+        let cmd = cargo()
+            .arg("test")
+            .current_dir(dir)
+            .status()
+            .expect(&format!("failed to test '{dir}'"));
+        assert!(cmd.success(), "failed test '{dir}'",);
+    }
+    cargo_test("tools");
+    cargo_test("dep");
+}
+
 fn main() {
     path::create_paths();
     let projects = Projects::build();
@@ -276,7 +298,7 @@ fn main() {
         &PathBuf::from(thirdparty::limine::LIMINE_SYS),
     );
     let initrd = Initrd::create(
-        vec![PathBuf::from("tools/initrd/src/main.rs")],
+        vec!["build/modules/test_bin", "build/modules/ps2"],
         format!("{}/initrd", path::build().display()).into(),
     );
     iso_root.put_module(initrd.output());

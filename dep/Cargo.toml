@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "bitmap",
+    "buddy",
+    "freelist",
+    "bitset",
+    "elf",
+]

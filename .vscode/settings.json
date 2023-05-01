@@ -3,11 +3,14 @@
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
         "kernel/Cargo.toml",
+        "modules/Cargo.toml",
         "tools/Cargo.toml",
+        "dep/Cargo.toml",
     ],
     "rust-analyzer.files.excludeDirs": [
         "build",
         "thirdparty"
     ],
-    "rust-analyzer.showUnlinkedFileNotification": false
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "rust-analyzer.cargo.buildScripts.enable": false,
 }

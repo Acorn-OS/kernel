@@ -3,18 +3,17 @@
 /build
 
 # Ignore build generated files
-#/target 
 /Cargo.lock
 
 # Ignore kernel generated files
-#/kernel/target
 /kernel/Cargo.lock
 
+# Ignore modules generated files
+/modules/Cargo.lock 
+
 # Ignore lib generated files
-#/lib/target
 /lib/Cargo.lock
 
 # Ignore tools generated files
-#/tools/target
 /tools/Cargo.lock
 

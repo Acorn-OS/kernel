@@ -1,0 +1,12 @@
+[package]
+name = "bitmap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+spin = "0.9.5"
+log = { version = "0.4.17", optional = true }
+
+[features]
+default = []
+log = ["dep:log"]

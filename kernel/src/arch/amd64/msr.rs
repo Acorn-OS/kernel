@@ -1,8 +1,8 @@
 use core::arch::asm;
 
-pub type MSR = u32;
+pub type Msr = u32;
 
-pub fn get(msr: MSR) -> u64 {
+pub fn get(msr: Msr) -> u64 {
     let lo: u32;
     let hi: u32;
     unsafe {
@@ -17,7 +17,7 @@ pub fn get(msr: MSR) -> u64 {
     lo as u64 | ((hi as u64) << 32)
 }
 
-pub fn set(msr: MSR, v: u64) {
+pub fn set(msr: Msr, v: u64) {
     let lo = v as u32;
     let hi = (v >> 32) as u32;
     unsafe {

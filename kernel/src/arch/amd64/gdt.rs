@@ -1,3 +1,4 @@
+use super::interrupt;
 use core::arch::{asm, global_asm};
 use core::fmt::Debug;
 
@@ -62,12 +63,12 @@ impl Debug for Entry {
 }
 
 #[repr(C, packed)]
-struct GDTR {
+struct Gdtr {
     size: u16,
     adr: u64,
 }
 
-impl Debug for GDTR {
+impl Debug for Gdtr {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("GDTR")
             .field("size", &format_args!("{}", { self.size }))
@@ -78,7 +79,7 @@ impl Debug for GDTR {
 
 #[derive(Debug)]
 #[repr(C, packed)]
-pub struct GDT {
+pub struct Gdt {
     // 0x00
     null: Entry,
     // 0x08
@@ -91,7 +92,7 @@ pub struct GDT {
     usrspc_data: Entry,
 }
 
-impl GDT {
+impl Gdt {
     pub fn new() -> Self {
         Self {
             null: Entry::null(),
@@ -103,7 +104,7 @@ impl GDT {
     }
 
     pub unsafe fn install(&self) {
-        crate::util::irq_di();
+        interrupt::disable();
         let gdtr = self.to_gdtr();
         asm!(
             "lgdt [rax]",
@@ -113,9 +114,9 @@ impl GDT {
         set_segments();
     }
 
-    fn to_gdtr(&self) -> GDTR {
-        GDTR {
-            size: (core::mem::size_of::<GDT>() - 1) as u16,
+    fn to_gdtr(&self) -> Gdtr {
+        Gdtr {
+            size: (core::mem::size_of::<Gdt>() - 1) as u16,
             adr: self as *const _ as u64,
         }
     }

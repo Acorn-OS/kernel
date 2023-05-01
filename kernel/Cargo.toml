@@ -7,9 +7,10 @@ edition = "2021"
 name = "kernel"
 path = "src/main.rs"
 
-[lib]
-name = "klib"
-path = "lib/lib.rs"
+[members]
+members = [
+    "deps/ctor",
+]
 
 [dependencies]
 cfg-if = "1.0.0"
@@ -23,22 +24,19 @@ limine = {version = "0.1.10", features = ["requests-section"]}
 path = "deps/ctor"
 
 [dependencies.bitmap]
-path = "deps/bitmap"
-
-[dependencies.bitset]
-path = "deps/bitset"
+path = "../dep/bitmap"
+features = []
 
 [dependencies.buddy]
-path = "deps/buddy"
+path = "../dep/buddy"
 
 [dependencies.freelist]
-path = "deps/freelist"
+path = "../dep/freelist"
+features = []
 
-[members]
-members = [
-    "deps/ctor",
-    "deps/bitmap",
-    "deps/bitset",
-    "deps/buddy",
-    "deps/freelist",
-]
+[dependencies.bitset]
+path = "../dep/bitset"
+
+[dependencies.elf]
+path = "../dep/elf"
+

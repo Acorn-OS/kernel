@@ -7,19 +7,23 @@ static LIMINE_KERNEL_ADDRESS: limine::LimineKernelAddressRequest =
     limine::LimineKernelAddressRequest::new(0);
 
 #[limine_tag]
-static LIMINE_MMAP: limine::LimineMemmapRequest = limine::LimineMemmapRequest::new(0);
+static LIMINE_MMAP: limine::LimineMemmapRequest = limine::LimineMemmapRequest::new(u64::MAX);
 
 #[limine_tag]
-static LIMINE_RDSP: limine::LimineRsdpRequest = limine::LimineRsdpRequest::new(0);
+static LIMINE_RDSP: limine::LimineRsdpRequest = limine::LimineRsdpRequest::new(u64::MAX);
 
 #[limine_tag]
-static LIMINE_HHDM: limine::LimineHhdmRequest = limine::LimineHhdmRequest::new(0);
+static LIMINE_HHDM: limine::LimineHhdmRequest = limine::LimineHhdmRequest::new(u64::MAX);
+
+#[limine_tag]
+static LIMINE_MODULES: limine::LimineModuleRequest = limine::LimineModuleRequest::new(u64::MAX);
 
 pub struct BootInfo {
     pub kernel_address: &'static limine::LimineKernelAddressResponse,
     pub rsdp: &'static limine::LimineRsdpResponse,
     pub mmap: &'static mut MMap,
     pub hhdm: &'static limine::LimineHhdmResponse,
+    pub modules: &'static limine::LimineModuleResponse,
 }
 
 impl BootInfo {
@@ -29,6 +33,7 @@ impl BootInfo {
             rsdp: LIMINE_RDSP.get_response().get().unwrap(),
             mmap: LIMINE_MMAP.get_response().get_mut().unwrap(),
             hhdm: LIMINE_HHDM.get_response().get().unwrap(),
+            modules: LIMINE_MODULES.get_response().get().unwrap(),
         }
     }
 }
@@ -51,7 +56,7 @@ unsafe fn call_init_arrays() {
     }
 }
 
-pub unsafe extern "C" fn kernel_early() -> ! {
+pub unsafe extern "C" fn kernel_early(boot_info: &BootInfo) -> ! {
     unsafe { call_init_arrays() };
-    crate::main()
+    crate::main(boot_info)
 }
