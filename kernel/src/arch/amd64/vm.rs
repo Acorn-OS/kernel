@@ -1,7 +1,8 @@
+use crate::boot::BootInfo;
 use crate::mm::pmm;
 use core::arch::asm;
 use core::mem::size_of;
-use core::ptr::NonNull;
+use core::ptr::{null_mut, NonNull};
 
 assert_eq_size!(usize, u64);
 
@@ -11,18 +12,29 @@ pub const LARGE_PAGE_SIZE: usize = 1 << 30;
 
 pub const PAGE_SIZE: usize = SMALL_PAGE_SIZE as usize;
 
+#[inline]
+fn divide_virt_adr(virt: u64) -> (usize, usize, usize, usize, u64) {
+    (
+        (virt as usize >> 39) & 0x1FF,
+        (virt as usize >> 30) & 0x1FF,
+        (virt as usize >> 21) & 0x1FF,
+        (virt as usize >> 12) & 0x1FF,
+        virt & 0xFFF,
+    )
+}
+
 bitfield! {
     #[derive(Clone, Copy)]
-    #[repr(C, packed)]
-    pub struct PageMapEntry(u64) {
-        p :bool @ 0,
+    #[repr(C, align(8))]
+    pub struct PageMapEntry(u64): Debug {
+        pub(super) p :bool @ 0,
         rw: bool @ 1,
         us: bool @ 2,
         pwt: bool @ 3,
         pcd: bool @ 4,
         a: bool @ 5,
         ps: bool @ 7,
-        resv: bool @ 10,
+        pub(super) resv: bool @ 9,
         inner_adr: u64 @ 12..=51,
         xd: bool @ 63,
     }
@@ -30,6 +42,12 @@ bitfield! {
 const_assert!(size_of::<PageMapEntry>() == 8);
 
 impl PageMapEntry {
+    pub fn new(phys_adr: u64) -> Self {
+        let mut entry = Self(0);
+        entry.set_adr(phys_adr);
+        entry
+    }
+
     pub fn adr(&self) -> u64 {
         ((((self.inner_adr() << 12) as i64) << 16) >> 16) as u64
     }
@@ -38,20 +56,9 @@ impl PageMapEntry {
         self.set_inner_adr(adr >> 12)
     }
 
-    pub fn is_resv(&self) -> bool {
-        self.resv()
-    }
-
-    pub fn set_present(&mut self) {
-        self.set_p(true)
-    }
-
-    pub fn new_kernel_small(phys_adr: u64) -> Self {
-        let mut entry = Self(0);
-        entry.set_adr(phys_adr);
-        entry.set_p(true);
-        entry.set_rw(true);
-        entry
+    fn modify_with_flags(&mut self, flags: Flags) -> Self {
+        self.0 |= flags.0 as u64 & 0xfff;
+        *self
     }
 }
 
@@ -72,6 +79,10 @@ impl core::fmt::Debug for PageMapPtr {
 }
 
 impl PageMapPtr {
+    fn new_alloc() -> Self {
+        Self::new(unsafe { pmm::alloc_pages(1).as_virt_ptr() })
+    }
+
     fn new(ptr: *mut PageMap) -> Self {
         Self(ptr)
     }
@@ -98,11 +109,11 @@ impl PageMapPtr {
 mod get {
     use super::*;
 
-    pub unsafe fn allocate(page_map: PageMapPtr, index: usize) -> PageMapPtr {
+    pub unsafe fn allocate(page_map: PageMapPtr, index: usize, flags: Flags) -> PageMapPtr {
         let entry = page_map.entry(index);
         if !entry.p() {
-            let new = new_page_map();
-            *entry = PageMapEntry::new_kernel_small(new.to_phys_adr());
+            let new = PageMapPtr::new_alloc();
+            *entry = PageMapEntry::new(new.to_phys_adr()).modify_with_flags(flags);
             new
         } else if entry.p() && entry.ps() {
             panic!("reallocating page")
@@ -123,34 +134,10 @@ mod get {
     }
 }
 
-#[derive(Clone, Copy)]
-#[repr(usize)]
-pub enum AllocSize {
-    SmallPage = SMALL_PAGE_SIZE,
-    MediumPage = MEDIUM_PAGE_SIZE,
-    LagePage = LARGE_PAGE_SIZE,
-}
-
-impl AllocSize {
-    pub fn size(&self) -> usize {
-        *self as usize
-    }
-}
-
-unsafe fn set(page_map: PageMapPtr, index: usize, adr: u64, large: bool) {
+unsafe fn set(page_map: PageMapPtr, index: usize, phys: u64, flags: Flags) {
     let entry = page_map.entry(index);
-    entry.set_adr(adr);
-    entry.set_ps(large);
-    entry.set_p(true);
-    entry.set_rw(true);
-}
-
-unsafe fn resv(page_map: PageMapPtr, index: usize) {
-    let entry = page_map.entry(index);
-    entry.set_adr(0);
-    entry.set_p(false);
-    entry.set_rw(true);
-    entry.set_resv(true);
+    entry.set_adr(phys);
+    entry.modify_with_flags(flags);
 }
 
 unsafe fn get(page_map: PageMapPtr, index: usize) -> NonNull<PageMapEntry> {
@@ -181,88 +168,60 @@ impl PageMap {
         }
     }
 
-    #[inline]
-    fn divide_virt_adr(virt: u64) -> (usize, usize, usize, usize, u64) {
-        (
-            (virt as usize >> 39) & 0x1FF,
-            (virt as usize >> 30) & 0x1FF,
-            (virt as usize >> 21) & 0x1FF,
-            (virt as usize >> 12) & 0x1FF,
-            virt & 0xFFF,
-        )
-    }
-
-    pub unsafe fn reserve(&mut self, mut virt: u64, pages: usize) {
-        let ptr = self.as_ptr();
-        for _ in 0..pages {
-            let (d0, d1, d2, d3, _) = Self::divide_virt_adr(virt);
-            resv(
-                get::allocate(get::allocate(get::allocate(ptr, d0), d1), d2),
-                d3,
-            );
-            virt += PAGE_SIZE as u64;
-        }
-    }
-
     pub unsafe fn get(&mut self, virt: u64) -> Option<NonNull<PageMapEntry>> {
         let ptr = self.as_ptr();
-        let (d0, d1, d2, d3, _) = Self::divide_virt_adr(virt);
+        let (d0, d1, d2, d3, _) = divide_virt_adr(virt);
         Some(get(get::get(get::get(get::get(ptr, d0)?, d1)?, d2)?, d3))
     }
 
-    pub unsafe fn alloc(&mut self, size: AllocSize, mut virt: u64, pages: usize, mut phys: u64) {
-        match size {
-            AllocSize::SmallPage => {
-                for _ in 0..pages {
-                    debug_assert!(virt < u64::MAX);
-                    let (d0, d1, d2, d3, _) = Self::divide_virt_adr(virt);
-                    self.alloc_map4((d0, d1, d2, d3), phys & !0xFFF);
-                    virt = virt.saturating_add(size.size() as u64);
-                    phys += size.size() as u64;
-                }
+    unsafe fn map(&mut self, mut virt: u64, pages: usize, mut phys: u64, flags: Flags) {
+        let ptr = self.as_ptr();
+        fn mask(size: usize) -> u64 {
+            !(size as u64 - 1)
+        }
+        let present_flags = flags | Flags::PRESENT;
+        let resv_flags = flags | Flags::RESV;
+        if flags.has(Flags::SIZE_LARGE) {
+            for _ in 0..pages {
+                let (d0, d1, _, _, _) = divide_virt_adr(virt);
+                set(
+                    get::allocate(ptr, d0, present_flags),
+                    d1,
+                    phys & mask(LARGE_PAGE_SIZE),
+                    resv_flags | Flags::PS,
+                );
+                virt += LARGE_PAGE_SIZE as u64;
+                phys += LARGE_PAGE_SIZE as u64;
             }
-            AllocSize::MediumPage => {
-                for _ in 0..pages {
-                    debug_assert!(virt < u64::MAX);
-                    let (d0, d1, d2, _, _) = Self::divide_virt_adr(virt);
-                    self.alloc_map3((d0, d1, d2), phys & !((1 << 21) - 1));
-                    virt = virt.saturating_add(size.size() as u64);
-                    phys += size.size() as u64;
-                }
+        } else if flags.has(Flags::SIZE_MEDIUM) {
+            for _ in 0..pages {
+                let (d0, d1, d2, _, _) = divide_virt_adr(virt);
+                set(
+                    get::allocate(get::allocate(ptr, d0, present_flags), d1, present_flags),
+                    d2,
+                    phys & mask(MEDIUM_PAGE_SIZE),
+                    resv_flags | Flags::PS,
+                );
+                virt += MEDIUM_PAGE_SIZE as u64;
+                phys += MEDIUM_PAGE_SIZE as u64;
             }
-            AllocSize::LagePage => {
-                for _ in 0..pages {
-                    debug_assert!(virt < u64::MAX);
-                    let (d0, d1, _, _, _) = Self::divide_virt_adr(virt);
-                    self.alloc_map2((d0, d1), phys & !((1 << 30) - 1));
-                    virt = virt.saturating_add(size.size() as u64);
-                    phys += size.size() as u64;
-                }
+        } else {
+            for _ in 0..pages {
+                let (d0, d1, d2, d3, _) = divide_virt_adr(virt);
+                set(
+                    get::allocate(
+                        get::allocate(get::allocate(ptr, d0, present_flags), d1, present_flags),
+                        d2,
+                        present_flags,
+                    ),
+                    d3,
+                    phys & mask(SMALL_PAGE_SIZE),
+                    resv_flags,
+                );
+                virt += SMALL_PAGE_SIZE as u64;
+                phys += SMALL_PAGE_SIZE as u64;
             }
         }
-    }
-
-    unsafe fn alloc_map2(&mut self, index: (usize, usize), adr: u64) {
-        let ptr = self.as_ptr();
-        let (d0, d1) = index;
-        set(get::allocate(ptr, d0), d1, adr, true);
-    }
-
-    unsafe fn alloc_map3(&mut self, index: (usize, usize, usize), adr: u64) {
-        let ptr = self.as_ptr();
-        let (d0, d1, d2) = index;
-        set(get::allocate(get::allocate(ptr, d0), d1), d2, adr, true);
-    }
-
-    unsafe fn alloc_map4(&mut self, index: (usize, usize, usize, usize), adr: u64) {
-        let ptr = self.as_ptr();
-        let (d0, d1, d2, d3) = index;
-        set(
-            get::allocate(get::allocate(get::allocate(ptr, d0), d1), d2),
-            d3,
-            adr,
-            false,
-        );
     }
 
     fn as_ptr(&mut self) -> PageMapPtr {
@@ -279,19 +238,99 @@ pub(super) unsafe fn get_cur() -> PageMapPtr {
     PageMapPtr::new(pmm::phys_to_hhdm(out) as *mut _)
 }
 
-pub fn new_page_map() -> PageMapPtr {
-    unsafe { PageMapPtr::new(pmm::alloc_pages_zeroed(1).as_virt_ptr()) }
+static mut KERNEL_PAGE_MAP_PTR: PageMapPtr = PageMapPtr(null_mut());
+static mut USER_PAGE_MAP_PTR: PageMapPtr = PageMapPtr(null_mut());
+
+pub unsafe fn init(boot_info: &BootInfo) {
+    // Map the kernel map.
+    KERNEL_PAGE_MAP_PTR = PageMapPtr::new_alloc();
+    // Memory map physical memory as HHDM.
+    map(
+        KERNEL_PAGE_MAP_PTR,
+        pmm::hhdm_base(),
+        4,
+        0,
+        Flags::PRESENT | Flags::RW | Flags::SIZE_LARGE,
+    );
+    // Map kernel to high address.
+    let _s4kib = 4 << 10;
+    let _kernel_large_page_count = 2;
+    let kernel_page_count = 4096 * 4; //(kernel_large_page_count << 30) / s4kib;
+    let kernel_phys_adr = boot_info.kernel_address.physical_base;
+    let kernel_virt_adr = 0xffffffff80000000;
+    map(
+        KERNEL_PAGE_MAP_PTR,
+        kernel_virt_adr,
+        kernel_page_count,
+        kernel_phys_adr,
+        Flags::PRESENT | Flags::RW,
+    );
+    // Map the userspace map.
+    USER_PAGE_MAP_PTR = PageMapPtr::new_alloc();
+    // Memory map physical memory as HHDM.
+    map(
+        USER_PAGE_MAP_PTR,
+        pmm::hhdm_base(),
+        4,
+        0,
+        Flags::PRESENT | Flags::RW | Flags::SIZE_LARGE,
+    );
+    // Map kernel to high address.
+    let _s4kib = 4 << 10;
+    let _kernel_large_page_count = 2;
+    let kernel_page_count = 4096 * 4; //(kernel_large_page_count << 30) / s4kib;
+    let kernel_phys_adr = boot_info.kernel_address.physical_base;
+    let kernel_virt_adr = 0xffffffff80000000;
+    map(
+        USER_PAGE_MAP_PTR,
+        kernel_virt_adr,
+        kernel_page_count,
+        kernel_phys_adr,
+        Flags::PRESENT | Flags::RW,
+    );
 }
 
-pub unsafe fn alloc_pages(map: PageMapPtr, virt: u64, pages: usize, phys: u64) {
-    map.get().alloc(AllocSize::SmallPage, virt, pages, phys)
+#[derive(Clone, Copy)]
+#[must_use]
+pub struct Flags(u32);
+
+impl Flags {
+    pub const NONE: Flags = Flags(0);
+    pub const PRESENT: Flags = Flags(1 << 0);
+    pub const RW: Flags = Flags(1 << 1);
+    pub const USER: Flags = Flags(1 << 2);
+    const PS: Flags = Flags(1 << 7);
+    const RESV: Flags = Flags(1 << 9);
+
+    pub const SIZE_LARGE: Flags = Flags(1 << 16);
+    pub const SIZE_MEDIUM: Flags = Flags(1 << 17);
+
+    pub fn merge(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    pub fn has(self, flags: Flags) -> bool {
+        self.0 & flags.0 == flags.0
+    }
 }
 
-pub unsafe fn alloc_large_pages(map: PageMapPtr, virt: u64, pages: usize, phys: u64) {
-    map.get().alloc(AllocSize::LagePage, virt, pages, phys)
+impl core::ops::BitOr for Flags {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        self.merge(rhs)
+    }
 }
 
-pub unsafe fn free_pages(_map: PageMapPtr, _virt: u64, _count: usize) {}
+pub fn kernel_page_map() -> PageMapPtr {
+    unsafe { KERNEL_PAGE_MAP_PTR }
+}
+
+pub unsafe fn new_userland_page_map() -> PageMapPtr {
+    let ptr = PageMapPtr::new(pmm::alloc_pages_zeroed(1).as_virt_ptr());
+    ptr.0.copy_from(USER_PAGE_MAP_PTR.0, 1);
+    ptr
+}
 
 pub unsafe fn install(map: PageMapPtr) {
     PageMap::install_ptr(map.to_phys_adr() as *mut PageMap)
@@ -301,6 +340,8 @@ pub unsafe fn get_page_entry(map: PageMapPtr, virt: u64) -> Option<NonNull<PageM
     map.get().get(virt)
 }
 
-pub unsafe fn resv_pages(map: PageMapPtr, virt: u64, pages: usize) {
-    map.get().reserve(virt, pages);
+pub unsafe fn map(map: PageMapPtr, virt: u64, pages: usize, phys: u64, flags: Flags) {
+    map.get().map(virt, pages, phys, flags);
 }
+
+pub unsafe fn unmap(_map: PageMapPtr, _virt: u64, _pages: usize) {}

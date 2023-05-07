@@ -1,3 +1,6 @@
+use crate::arch::{self, interrupt};
+use crate::logging;
+use crate::mm::{heap, pmm};
 use limine::limine_tag;
 
 pub type MMap = limine::LimineMemmapResponse;
@@ -38,10 +41,6 @@ impl BootInfo {
     }
 }
 
-pub unsafe fn info() -> BootInfo {
-    BootInfo::get()
-}
-
 /// Initialize all constructor functions
 unsafe fn call_init_arrays() {
     extern "C" {
@@ -56,7 +55,19 @@ unsafe fn call_init_arrays() {
     }
 }
 
-pub unsafe extern "C" fn kernel_early(boot_info: &BootInfo) -> ! {
-    unsafe { call_init_arrays() };
+#[no_mangle]
+pub unsafe extern "C" fn kernel_early() -> ! {
+    interrupt::disable();
+    logging::init();
+    let mut boot_info = BootInfo::get();
+    pmm::init(&mut boot_info);
+    trace!(
+        "initialized physical memory management with '{}' pages",
+        pmm::page_cnt()
+    );
+    trace!("initializing heap");
+    heap::init();
+    arch::arch_init(&mut boot_info);
+    call_init_arrays();
     crate::main(boot_info)
 }

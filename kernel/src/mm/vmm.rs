@@ -1,13 +1,9 @@
-use super::pmm::Page;
 use crate::arch::vm::{self, PageMapPtr};
-use crate::boot;
-use crate::mm::pmm;
-use alloc::alloc::Global;
 use core::fmt::Debug;
 
-pub const PAGE_SIZE: usize = pmm::PAGE_SIZE;
+pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
 
-type AllocatorTy = freelist::FreeList<Global>;
+type AllocatorTy = freelist::FreeList;
 
 pub struct VirtualMemory {
     root_map: PageMapPtr,
@@ -18,92 +14,74 @@ impl Debug for VirtualMemory {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("VirtualMemory")
             .field("root_map", &self.root_map)
-            .field("allocator", &self.allocator)
             .finish()
     }
+}
+
+pub enum Flags {
+    Phys { flags: vm::Flags, phys: u64 },
 }
 
 impl VirtualMemory {
     pub const PAGE_SIZE: usize = PAGE_SIZE;
 
-    pub fn alloc_pages(&mut self, pages: usize) -> *mut Page {
-        let virt = self
-            .allocator
-            .alloc_aligned_bytes(Self::PAGE_SIZE, pages * Self::PAGE_SIZE)
-            .expect("failed to allocate virtual memory");
-        unsafe { vm::resv_pages(self.root_map, virt as u64, pages) };
-        virt as *mut _
+    pub fn map(&mut self, virt: Option<u64>, pages: usize, flags: Flags) -> u64 {
+        let page_size = match flags {
+            Flags::Phys { flags, .. } => {
+                if flags.has(vm::Flags::SIZE_LARGE) {
+                    panic!("no support for large pages")
+                    //vm::LARGE_PAGE_SIZE
+                } else if flags.has(vm::Flags::SIZE_MEDIUM) {
+                    panic!("no support for medium pages")
+                    //vm::MEDIUM_PAGE_SIZE
+                } else {
+                    vm::PAGE_SIZE
+                }
+            }
+        };
+        let allocated_size = page_size * pages;
+        let virt = if let Some(virt) = virt {
+            debug_assert!(
+                virt & (page_size - 1) as u64 == 0,
+                "unaligned virtual address"
+            );
+            self.allocator
+                .reserve_bytes(virt, allocated_size)
+                .expect("failed to reserve bytes");
+            virt
+        } else {
+            self.allocator
+                .alloc_aligned_bytes(page_size, allocated_size)
+                .expect("failed to alloc aligned bytes") as u64
+        };
+        match flags {
+            Flags::Phys { flags, phys } => {
+                let phys = phys & !(page_size - 1) as u64;
+                unsafe { vm::map(self.root_map, virt, pages, phys, flags) };
+            }
+        }
+        virt
     }
 
-    pub fn alloc_pages_with_base_virt(&mut self, pages: usize, virt: u64) {
-        self.allocator
-            .reserve_bytes(virt, pages * PAGE_SIZE)
-            .expect("failed to reserve virtual memory");
-        unsafe { vm::resv_pages(self.root_map, virt, pages) };
-    }
-
-    pub fn map_pages(&mut self, pages: usize, phys: u64) -> *mut Page {
-        let virt = self
-            .allocator
-            .alloc_aligned_bytes(Self::PAGE_SIZE, pages * Self::PAGE_SIZE)
-            .expect("failed to allocate virtual memory");
-        unsafe { vm::alloc_pages(self.root_map, virt as u64, pages, phys) };
-        virt as *mut _
-    }
-
-    pub unsafe fn map_pages_raw(&mut self, pages: usize, virt: u64, phys: u64) {
-        self.allocator
-            .reserve_bytes(virt, pages * Self::PAGE_SIZE)
-            .expect("failed to reserve virtual memory");
-        vm::alloc_pages(self.root_map, virt, pages, phys);
-    }
-
-    pub fn free_pages(_ptr: *mut u8, _pages: usize) {
-        unimplemented!()
-    }
+    pub unsafe fn unmap(&mut self, _ptr: *mut u8, _pages: usize) {}
 
     pub unsafe fn install(&self) {
         vm::install(self.root_map)
     }
 
-    pub fn new_kernel() -> Self {
-        let mut map = VirtualMemory {
-            allocator: unsafe { AllocatorTy::with_allocator(Global) },
-            root_map: vm::new_page_map(),
-        };
-        // Push allocatable region.
-        map.allocator
-            .push_region(0xffff800000000000, 1 << 47)
-            .expect("failed to push map allocator region");
-        // Memory map physical memory as HHDM.
-        unsafe { vm::alloc_large_pages(map.root_map, pmm::hhdm_base(), 4, 0) };
-        map.allocator
-            .reserve_bytes(pmm::hhdm_base(), 4 * (1 << 30))
-            .expect("failed to reserve bytes for kernel vmm");
-        // Map kernel to high address.
-        let s4kib = 4 << 10;
-        let kernel_large_page_count = 2;
-        let kernel_page_count = 4096 * 4; //(kernel_large_page_count << 30) / s4kib;
-        let kernel_phys_adr = unsafe { boot::info().kernel_address.physical_base };
-        let kernel_virt_adr = 0xffffffff80000000;
-        unsafe { map.map_pages_raw(kernel_page_count, kernel_virt_adr, kernel_phys_adr) };
-        map
-    }
-
     pub fn new_userland() -> Self {
-        let mut map = new_kernel();
-        //Push allocatable region.
-        let start = 1 << 20;
-        let len = (1 << 47) - start;
-        map.allocator
-            .push_region(start, len as usize)
-            .expect("failed to push map allocator region");
+        let mut allocator = AllocatorTy::new();
+        let allocator_start = 1 << 20;
+        let allocator_len = (1 << 47) - allocator_start;
+        allocator
+            .push_region(1 << 20, allocator_len)
+            .expect("failed to push region for allocator");
+        let map = VirtualMemory {
+            root_map: unsafe { vm::new_userland_page_map() },
+            allocator,
+        };
         map
     }
-}
-
-pub fn new_kernel() -> VirtualMemory {
-    VirtualMemory::new_kernel()
 }
 
 pub fn new_userland() -> VirtualMemory {

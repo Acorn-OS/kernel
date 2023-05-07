@@ -303,10 +303,8 @@ impl Elf64 {
         unsafe { slice::from_raw_parts(self.0.as_ptr(), self.0.len()) }
     }
 
-    pub fn file_image(&self) -> &[u8] {
-        let len = self.sections_ptr() as usize - self.program_headers_ptr() as usize;
-        let start = self.program_headers_ptr() as usize + self.program_header_count();
-        unsafe { slice::from_raw_parts(start as *const _, len) }
+    pub fn as_ptr(&self) -> *const u8 {
+        self.0.as_ptr()
     }
 
     pub fn header(&self) -> &Elf64Ehdr {

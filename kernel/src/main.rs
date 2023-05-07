@@ -49,7 +49,7 @@ use alloc::string::String;
 use boot::BootInfo;
 use core::ffi::CStr;
 
-fn main(boot_info: &BootInfo) -> ! {
+fn main(boot_info: BootInfo) -> ! {
     info!("entered kernel main...");
     info!("loaded modules count: {}", boot_info.modules.module_count);
     info!("loaded modules:");

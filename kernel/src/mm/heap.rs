@@ -26,14 +26,14 @@ pub unsafe fn free_bytes(ptr: NonNull<u8>, count: usize) {
     Global.deallocate(ptr, Layout::from_size_align_unchecked(count, 1))
 }
 
-fn alloc_layout(layout: Layout) -> NonNull<u8> {
+pub fn alloc_layout(layout: Layout) -> NonNull<u8> {
     Global
         .allocate(layout)
         .expect(&format!("failed to allocate with layout '{layout:?}'"))
         .cast::<u8>()
 }
 
-fn dealloc_layout(ptr: NonNull<u8>, layout: Layout) {
+pub fn dealloc_layout(ptr: NonNull<u8>, layout: Layout) {
     unsafe { Global.deallocate(ptr, layout) }
 }
 

@@ -2,8 +2,6 @@ pub mod loader;
 pub mod scheduler;
 pub mod thread;
 
-mod kernel_procs;
-
 use self::thread::Thread;
 use crate::arch::interrupt;
 use crate::fs::initrd::InitrdFs;
@@ -64,8 +62,6 @@ pub fn new_kernel_proc(
 }
 
 pub fn run(mut initrd: InitrdFs) -> ! {
-    scheduler::schedule(kernel_procs::empty::new());
-    scheduler::schedule(kernel_procs::main::new());
     for file in initrd.ls("").expect("failed to list files in initrd") {
         info!("starting module '{}'", file.name);
         let open = initrd
@@ -81,10 +77,9 @@ pub fn run(mut initrd: InitrdFs) -> ! {
             "unable to parse file '{}' as executable elf",
             file.name
         ));
-        let (_, id) = loader::elf::spawn_kernel(&elf);
+        let (_, id) = loader::elf::spawn(&elf);
         scheduler::schedule(id);
     }
-    info!("hello!");
     interrupt::enable();
     loop {
         interrupt::halt();

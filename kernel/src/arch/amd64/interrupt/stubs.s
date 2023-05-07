@@ -39,45 +39,36 @@
 	pop rax
 .endm
 
+.macro HANDLER n, name 
+	PUSH_REGS
+	mov rdi, rsp 
+	.extern excpt_\name
+	call \name
+	mov rsp, rax 
+	POP_REGS
+	add rsp, 8 
+	iretq
+.endm 
+
 .macro EXCPT n, name 
 	.align 8
 	irq_handler_\n:
-		PUSH_REGS
-		mov rdi, rsp 
-		.extern excpt_\name
-		call excpt_\name
-		mov rsp, rax 
-		POP_REGS
-		add rsp, 8 
-		iretq
+		HANDLER \n excpt_\name
 .endm 
 
-.macro EXCPT_DUMMY n, name 
+.macro EXCPT_DUMMY n, name
 	.align 8
 	irq_handler_\n:
         push EXCEPTION_DUMMY_ERROR 
-		PUSH_REGS
-		mov rdi, rsp 
-		.extern excpt_\name
-		call excpt_\name
-		mov rsp, rax 
-		POP_REGS
-		add rsp, 8 
-		iretq
+		HANDLER \n excpt_\name
 .endm 
 
 .macro IRQ n, name 
+	.extern \name
 	.align 8
 	irq_handler_\n:
         push EXCEPTION_DUMMY_ERROR
-		PUSH_REGS
-		mov rdi, rsp 
-		.extern \name
-		call \name
-		mov rsp, rax 
-		POP_REGS
-		add rsp, 8
-		iretq
+		HANDLER \n \name
 .endm 
 
 

@@ -43,7 +43,7 @@ fn get_base(rsdp: &Rsdp) -> &'static Rsdt {
 
 unsafe fn validate(rsdt: &Rsdt) -> bool {
     debug!(
-        "validating RSDT at physical address 0x{:016X}",
+        "validating RSDT at physical address 0x{:016x}",
         rsdt as *const _ as usize
     );
     let len = rsdt.length;

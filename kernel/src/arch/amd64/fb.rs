@@ -22,7 +22,6 @@ impl Pixel {
     }
 }
 
-pub const VIRT_ADR: usize = 0xffffff8000000000;
 pub const PHYS_ADR: usize = 0xb8000;
 
 /// 128KiB of display memory.

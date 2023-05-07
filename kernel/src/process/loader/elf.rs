@@ -1,21 +1,15 @@
-use crate::mm::vmm::VirtualMemory;
+use crate::arch::vm;
+use crate::mm::vmm::{Flags, VirtualMemory};
 use crate::mm::{heap, pmm};
 use crate::process::thread::Thread;
 use crate::process::{self, Process, ProcessId};
 use core::ptr::NonNull;
 use elf::Elf64;
 
-pub fn spawn_kernel(elf: &Elf64) -> (NonNull<Process>, ProcessId) {
-    let vmm = unsafe { map(elf, VirtualMemory::new_userland()) };
-    debug!("entry address: {:x}", elf.program_entry());
-    process::new_kernel_proc(heap::alloc(vmm), unsafe {
-        Thread::new(pmm::alloc_pages(256).as_virt_ptr(), elf.program_entry())
-    })
-}
-
-pub fn spawn_usrspc(elf: &Elf64) -> (NonNull<Process>, ProcessId) {
-    let _vmm = unsafe { map(elf, VirtualMemory::new_userland()) };
-    unimplemented!()
+pub fn spawn(elf: &Elf64) -> (NonNull<Process>, ProcessId) {
+    let mut vmm = unsafe { map(elf, VirtualMemory::new_userland()) };
+    let thread = Thread::new(&mut vmm, elf.program_entry(), 256);
+    process::new_kernel_proc(heap::alloc(vmm), thread)
 }
 
 unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {
@@ -27,13 +21,18 @@ unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {
         if vadr == 0 {
             continue;
         }
-        debug!("loading elf program header: {program_header:x?}");
         let pages = bytes.div_ceil(pmm::PAGE_SIZE as u64) as usize;
-        debug!("allocating pages '{pages}'");
         let alloced = pmm::alloc_pages(pages);
         let alloced_vptr = alloced.as_virt_ptr::<u8>();
-        alloced_vptr.copy_from(elf.file_image().as_ptr().add(off as usize), bytes as usize);
-        vmm.map_pages_raw(pages, vadr, alloced.adr());
+        alloced_vptr.copy_from(elf.as_ptr().add(off as usize), bytes as usize);
+        vmm.map(
+            Some(vadr),
+            pages,
+            Flags::Phys {
+                flags: vm::Flags::PRESENT | vm::Flags::RW,
+                phys: alloced.phys_adr(),
+            },
+        );
     }
     vmm
 }

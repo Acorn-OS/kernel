@@ -6,6 +6,7 @@ use core::arch::global_asm;
 
 global_asm!(include_str!("stubs.s"));
 
+#[derive(Clone, Debug)]
 #[repr(C, packed)]
 pub struct StackFrame {
     rbp: u64,

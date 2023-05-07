@@ -49,12 +49,12 @@ impl PagePtr {
         self.0
     }
 
-    pub fn adr(&self) -> u64 {
+    pub fn phys_adr(&self) -> u64 {
         self.ptr() as u64
     }
 
     pub fn virt_adr(&self) -> u64 {
-        self.adr() + hhdm_base()
+        self.phys_adr() + hhdm_base()
     }
 
     pub fn page_count(&self) -> usize {

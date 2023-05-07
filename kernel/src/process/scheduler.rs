@@ -1,6 +1,6 @@
-use core::ptr::NonNull;
 use super::{Process, ProcessId};
 use crate::arch::interrupt::StackFrame;
+use core::ptr::NonNull;
 use spin::Mutex;
 
 const MAX_SCHEDULED_PROCS: usize = 256;
@@ -34,7 +34,7 @@ impl Scheduler {
         }
     }
 
-    fn next(&self) -> Option<ProcessId>{
+    fn next(&self) -> Option<ProcessId> {
         self.get(1)
     }
 
@@ -67,11 +67,18 @@ pub fn deschedule(_process_id: ProcessId) {
 pub fn step(cur_stackframe: *mut StackFrame) -> *mut StackFrame {
     let mut scheduler = SCHEDULER.lock();
     if let Some(running) = scheduler.running {
-        unsafe { scheduler.get_proc(running).unwrap_unchecked().as_mut().main_thread.kernel_stackframe = cur_stackframe };
+        unsafe {
+            scheduler
+                .get_proc(running)
+                .expect("running proc")
+                .as_mut()
+                .main_thread
+                .kernel_stackframe = cur_stackframe
+        };
     }
     let mut stackframe = cur_stackframe;
     match scheduler.next() {
-        Some(id) 
+        Some(id)
             if let Some(mut proc) = scheduler.get_proc(id) =>  {
                 let proc = unsafe { proc.as_mut() };
                 stackframe = proc.main_thread.kernel_stackframe;

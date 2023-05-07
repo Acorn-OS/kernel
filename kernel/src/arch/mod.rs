@@ -1,3 +1,5 @@
+use crate::boot::BootInfo;
+
 cfg_if! {
     if #[cfg(target_arch = "x86_64")]{
         mod amd64;
@@ -10,6 +12,12 @@ cfg_if! {
 macro_rules! assert_fn {
     ($fn:path: $($tt:tt)*) => {
         const _: $($tt)* = $fn;
+    };
+}
+
+macro_rules! assert_const {
+    ($const:path : $ty:ty) => {
+        const _: $ty = $const;
     };
 }
 
@@ -36,29 +44,38 @@ pub mod vm {
     use super::imp::vm;
     use core::ptr::NonNull;
 
-    pub use vm::AllocSize;
     pub use vm::PageMapEntry;
     pub use vm::PageMapPtr;
 
-    pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
+    pub use vm::Flags;
 
-    export_assert_fn!(vm::alloc_pages: unsafe fn(PageMapPtr, u64, usize, u64));
-    export_assert_fn!(vm::alloc_large_pages: unsafe fn(PageMapPtr, u64, usize, u64));
-    export_assert_fn!(vm::free_pages: unsafe fn(PageMapPtr, u64, usize));
+    assert_const!(Flags::PRESENT: Flags);
+    assert_const!(Flags::RW: Flags);
+    assert_const!(Flags::USER: Flags);
+    assert_const!(Flags::SIZE_MEDIUM: Flags);
+    assert_const!(Flags::SIZE_LARGE: Flags);
+
+    pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
+    pub const MEDIUM_PAGE_SIZE: usize = vm::MEDIUM_PAGE_SIZE;
+    pub const LARGE_PAGE_SIZE: usize = vm::LARGE_PAGE_SIZE;
+
+    export_assert_fn!(vm::map: unsafe fn(PageMapPtr, u64, usize, u64, Flags));
+    export_assert_fn!(vm::unmap: unsafe fn(PageMapPtr, u64, usize));
     export_assert_fn!(vm::install: unsafe fn(PageMapPtr));
-    export_assert_fn!(vm::new_page_map: fn() -> PageMapPtr);
+    export_assert_fn!(vm::new_userland_page_map: unsafe fn() -> PageMapPtr);
+    export_assert_fn!(vm::kernel_page_map: fn() -> PageMapPtr);
     export_assert_fn!(
         vm::get_page_entry: unsafe fn(PageMapPtr, u64) -> Option<NonNull<PageMapEntry>>
     );
-    export_assert_fn!(vm::resv_pages: unsafe fn(PageMapPtr, u64, usize));
 }
 
 pub mod cpuc {
     use super::imp::cpuc;
+    use core::ptr::NonNull;
 
     pub use cpuc::Core;
 
-    export_assert_fn!(cpuc::get: fn() -> *mut Core);
+    export_assert_fn!(cpuc::get_kernel: fn() -> Option<NonNull<Core>>);
 }
 
 pub mod fb {
@@ -84,3 +101,5 @@ pub mod interrupt {
     export_assert_fn!(interrupt::enable: fn());
     export_assert_fn!(interrupt::disable: fn());
 }
+
+export_assert_fn!(imp::arch_init: unsafe fn(&mut BootInfo));

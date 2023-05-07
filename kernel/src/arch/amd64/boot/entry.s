@@ -6,8 +6,8 @@ stack_end:
 
 .code64
 .section .text
-.extern amd64_boot
+.extern kernel_early
 .global _start 
 _start:
     mov rsp, offset stack_end 
-    jmp amd64_boot
+    jmp kernel_early

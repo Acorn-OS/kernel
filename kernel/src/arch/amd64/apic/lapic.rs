@@ -74,14 +74,15 @@ pub unsafe fn create_local() -> LApicPtr {
         LApicPtr::SPURIUOS_INT_VEC,
         ptr.read_reg(LApicPtr::SPURIUOS_INT_VEC) | 0x1FF,
     );
-    ptr.write_reg(LApicPtr::INIT_CNT, 0x100000);
+    ptr.write_reg(LApicPtr::INIT_CNT, 0x8000000);
     ptr.write_reg(LApicPtr::DIV_CONF, 0b1011);
     ptr.write_reg(LApicPtr::LVT_TIMER, 0x20 | (0b01 << 17));
     ptr
 }
 
 pub unsafe fn eoi() {
-    let ptr = cpuc::get();
-    debug_assert!(!ptr.is_null(), "cpuc ptr is null");
-    (*ptr).lapic_ptr.eoi();
+    let ptr = cpuc::get_kernel();
+    debug_assert!(!ptr.is_some(), "cpuc ptr is null");
+    let mut ptr = ptr.unwrap_unchecked();
+    ptr.as_mut().lapic_ptr.eoi();
 }

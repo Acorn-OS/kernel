@@ -85,9 +85,9 @@ unsafe extern "C" fn excpt_page_fault(stackframe: *mut StackFrame) -> *mut Stack
     debug_assert!(adr != 0, "nullptr");
     if let Some(mut entry) = vm::get_page_entry(vm::get_cur(), adr) {
         let entry = entry.as_mut();
-        if entry.is_resv() {
-            entry.set_adr(pmm::alloc_pages_zeroed(1).adr());
-            entry.set_present()
+        if entry.resv() {
+            entry.set_adr(pmm::alloc_pages_zeroed(1).phys_adr());
+            entry.set_p(true);
         } else {
             panic!("accessed an unreserved page at adr '0x{adr:016x}'");
         }
