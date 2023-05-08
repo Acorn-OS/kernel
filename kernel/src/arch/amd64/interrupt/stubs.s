@@ -19,9 +19,27 @@
 	push r14
 	push r15
 	push rbp
+
+	mov rax, cr0
+	push rax
+
+	mov rax, cr3
+	push rax
+
+	mov rax, cr4 
+	push rax 
 .endm
 
 .macro POP_REGS
+	pop rax
+	mov cr4, rax
+
+	pop rax
+	mov cr3, rax
+
+	pop rax
+	mov cr0, rax
+
 	pop rbp
 	pop r15
 	pop r14
@@ -39,39 +57,36 @@
 	pop rax
 .endm
 
-.macro HANDLER n, name 
+.macro HANDLER n, handler 
+	push \n
 	PUSH_REGS
 	mov rdi, rsp 
-	.extern excpt_\name
-	call \name
-	mov rsp, rax 
+	.extern \handler
+	call \handler
 	POP_REGS
-	add rsp, 8 
+	add rsp, 16 
 	iretq
 .endm 
 
-.macro EXCPT n, name 
+.macro EXCPT n, handler
 	.align 8
 	irq_handler_\n:
-		HANDLER \n excpt_\name
+		HANDLER \n excpt_\handler
 .endm 
 
-.macro EXCPT_DUMMY n, name
+.macro EXCPT_DUMMY n, handler
 	.align 8
 	irq_handler_\n:
         push EXCEPTION_DUMMY_ERROR 
-		HANDLER \n excpt_\name
+		HANDLER \n excpt_\handler
 .endm 
 
-.macro IRQ n, name 
-	.extern \name
+.macro IRQ n, handler
 	.align 8
 	irq_handler_\n:
         push EXCEPTION_DUMMY_ERROR
-		HANDLER \n \name
+		HANDLER \n \handler
 .endm 
-
-
 
 EXCPT_DUMMY 0 division_error
 EXCPT_DUMMY 1 debug
@@ -105,6 +120,7 @@ EXCPT_DUMMY 28 hypervisor_injection
 EXCPT 29 vmm_communication
 EXCPT 30 security
 EXCPT_DUMMY 31 reserved
+
 
 IRQ 32 irq_timer
 IRQ 33 unimp 

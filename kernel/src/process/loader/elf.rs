@@ -29,7 +29,7 @@ unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {
             Some(vadr),
             pages,
             Flags::Phys {
-                flags: vm::Flags::PRESENT | vm::Flags::RW,
+                flags: vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::USER,
                 phys: alloced.phys_adr(),
             },
         );

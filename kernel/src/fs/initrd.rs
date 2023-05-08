@@ -29,7 +29,9 @@ pub struct InitrdFs {
 impl InitrdFs {
     pub unsafe fn from_raw(initd_ptr: *const u8, length: usize) -> Self {
         assert!(length >= size_of::<Header>());
-        Self { inner: initd_ptr }
+        let ret = Self { inner: initd_ptr };
+        assert!(ret.get_header().length <= length as u64);
+        ret
     }
 
     unsafe fn get_header(&self) -> &Header {
@@ -42,6 +44,7 @@ impl InitrdFs {
 
     unsafe fn fs_open(&self, name: &str) -> Result<u64, Error> {
         let header = self.get_header();
+        info!("name: {name}");
         if name.len() > HEADER_NAME_LEN {
             return Err(Error::InvalidFile(
                 "file name was too large for initrd fs".to_string(),

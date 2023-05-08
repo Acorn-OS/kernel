@@ -75,7 +75,7 @@ pub mod cpuc {
 
     pub use cpuc::Core;
 
-    export_assert_fn!(cpuc::get_kernel: fn() -> Option<NonNull<Core>>);
+    export_assert_fn!(cpuc::get_kernel: fn() -> NonNull<Core>);
 }
 
 pub mod fb {
@@ -91,11 +91,12 @@ pub mod fb {
 
 pub mod interrupt {
     use super::imp::interrupt;
+    use super::imp::vm::PageMapPtr;
 
     pub use interrupt::StackFrame;
 
-    assert_fn!(StackFrame::new_kernel: fn(u64, u64) -> StackFrame);
-    assert_fn!(StackFrame::new_userspace: fn(u64, u64) -> StackFrame);
+    assert_fn!(StackFrame::new_kernel: fn(u64, u64, PageMapPtr) -> StackFrame);
+    assert_fn!(StackFrame::new_userspace: fn(u64, u64, PageMapPtr) -> StackFrame);
 
     export_assert_fn!(interrupt::halt: fn());
     export_assert_fn!(interrupt::enable: fn());

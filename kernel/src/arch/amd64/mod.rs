@@ -6,6 +6,7 @@ pub mod vm;
 
 mod apic;
 mod boot;
+mod cpu;
 mod gdt;
 mod idt;
 mod msr;
@@ -18,8 +19,14 @@ use apic::ioapic;
 
 #[no_mangle]
 pub unsafe fn arch_init(boot_info: &mut BootInfo) {
+    trace!("initializing GDT");
+    gdt::init();
+    gdt::install();
+    trace!("initializing IDT");
+    idt::init();
+    idt::install();
     trace!("initializing vm");
-    vm::init(&boot_info);
+    vm::init();
     trace!("initializing core structures");
     cpuc::init_for_core();
     trace!("initializing the IO-APIC");

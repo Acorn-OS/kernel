@@ -58,6 +58,7 @@ impl Idt {
                 entry.set_offset(f as u64);
                 entry.set_p(true);
                 entry.set_segment_selector(KERNEL_CODE_SELECTOR);
+                entry.set_ist(0);
                 if i < 32 {
                     entry.set_gate(GateType::Trap);
                 } else {
@@ -88,4 +89,16 @@ impl Idt {
     fn set_entry(&mut self, index: u8, entry: Entry) {
         self.entries[index as usize] = entry;
     }
+}
+
+static mut IDT: Idt = Idt {
+    entries: [Entry(0); 256],
+};
+
+pub unsafe fn init() {
+    IDT = Idt::new();
+}
+
+pub unsafe fn install() {
+    IDT.install()
 }

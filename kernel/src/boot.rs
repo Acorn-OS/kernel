@@ -1,6 +1,6 @@
 use crate::arch::{self, interrupt};
 use crate::logging;
-use crate::mm::{heap, pmm};
+use crate::mm::{heap, pmm, vmm};
 use limine::limine_tag;
 
 pub type MMap = limine::LimineMemmapResponse;
@@ -66,8 +66,9 @@ pub unsafe extern "C" fn kernel_early() -> ! {
         pmm::page_cnt()
     );
     trace!("initializing heap");
-    heap::init();
     arch::arch_init(&mut boot_info);
+    heap::init();
+    vmm::init(&boot_info);
     call_init_arrays();
     crate::main(boot_info)
 }

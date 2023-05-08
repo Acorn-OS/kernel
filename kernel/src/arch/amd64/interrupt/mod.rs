@@ -1,7 +1,9 @@
 mod except;
 mod irq;
 
+use super::cpu::ctrl_regs::{cr0, cr4};
 use super::gdt;
+use super::vm::PageMapPtr;
 use core::arch::global_asm;
 
 global_asm!(include_str!("stubs.s"));
@@ -9,6 +11,9 @@ global_asm!(include_str!("stubs.s"));
 #[derive(Clone, Debug)]
 #[repr(C, packed)]
 pub struct StackFrame {
+    cr4: u64,
+    cr3: u64,
+    cr0: u64,
     rbp: u64,
     r15: u64,
     r14: u64,
@@ -24,6 +29,7 @@ pub struct StackFrame {
     rcx: u64,
     rbx: u64,
     rax: u64,
+    irq_id: u64,
     error: u64,
     rip: u64,
     cs: u64,
@@ -33,8 +39,11 @@ pub struct StackFrame {
 }
 
 impl StackFrame {
-    pub fn new_kernel(ip: u64, sp: u64) -> Self {
+    pub fn new_kernel(ip: u64, sp: u64, page_map: PageMapPtr) -> Self {
         Self {
+            cr4: cr4::get(),
+            cr3: page_map.to_phys_adr(),
+            cr0: cr0::get(),
             rbp: 0,
             r15: 0,
             r14: 0,
@@ -50,6 +59,7 @@ impl StackFrame {
             rcx: 0,
             rbx: 0,
             rax: 0,
+            irq_id: 0,
             error: 0,
             rip: ip,
             cs: gdt::KERNEL_CODE_SELECTOR as u64,
@@ -59,8 +69,11 @@ impl StackFrame {
         }
     }
 
-    pub fn new_userspace(ip: u64, sp: u64) -> Self {
+    pub fn new_userspace(ip: u64, sp: u64, page_map: PageMapPtr) -> Self {
         Self {
+            cr4: cr4::get(),
+            cr3: page_map.to_phys_adr(),
+            cr0: cr0::get(),
             rbp: 0,
             r15: 0,
             r14: 0,
@@ -76,12 +89,13 @@ impl StackFrame {
             rcx: 0,
             rbx: 0,
             rax: 0,
+            irq_id: 0,
             error: 0,
             rip: ip,
-            cs: gdt::USRSPC_CODE_SELECTOR as u64,
+            cs: gdt::USRSPC_CODE_SELECTOR as u64 | 3,
             rflags: 1 << 9,
             rsp: sp,
-            ss: gdt::USRSPC_DATA_SELECTOR as u64,
+            ss: gdt::USRSPC_DATA_SELECTOR as u64 | 3,
         }
     }
 }

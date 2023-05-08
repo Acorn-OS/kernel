@@ -1,4 +1,6 @@
-use super::pmm;
+mod primordial;
+
+use crate::mm::pmm;
 use alloc::alloc::Global;
 use bitmap::BitMapPtrAllocator;
 use core::alloc::{Allocator, Layout};

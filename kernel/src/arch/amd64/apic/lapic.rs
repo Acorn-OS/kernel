@@ -81,8 +81,6 @@ pub unsafe fn create_local() -> LApicPtr {
 }
 
 pub unsafe fn eoi() {
-    let ptr = cpuc::get_kernel();
-    debug_assert!(!ptr.is_some(), "cpuc ptr is null");
-    let mut ptr = ptr.unwrap_unchecked();
+    let mut ptr = cpuc::get_kernel();
     ptr.as_mut().lapic_ptr.eoi();
 }

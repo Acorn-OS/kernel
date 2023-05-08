@@ -1,4 +1,3 @@
-use crate::boot::BootInfo;
 use crate::mm::pmm;
 use core::arch::asm;
 use core::mem::size_of;
@@ -58,13 +57,16 @@ impl PageMapEntry {
 
     fn modify_with_flags(&mut self, flags: Flags) -> Self {
         self.0 |= flags.0 as u64 & 0xfff;
+        self.set_xd(flags.has(Flags::XD));
         *self
     }
 }
 
+const PAGE_MAP_ENTRIES: usize = 512;
+
 #[repr(C, align(4096))]
 struct PageMap {
-    entries: [PageMapEntry; 512],
+    entries: [PageMapEntry; PAGE_MAP_ENTRIES],
 }
 const_assert!(size_of::<PageMap>() == PAGE_SIZE);
 const_assert!(PAGE_SIZE == pmm::PAGE_SIZE);
@@ -79,6 +81,12 @@ impl core::fmt::Debug for PageMapPtr {
 }
 
 impl PageMapPtr {
+    /// # Safety
+    /// gives back an invalid page map ptr.
+    pub const unsafe fn nullptr() -> Self {
+        Self(null_mut())
+    }
+
     fn new_alloc() -> Self {
         Self::new(unsafe { pmm::alloc_pages(1).as_virt_ptr() })
     }
@@ -87,16 +95,22 @@ impl PageMapPtr {
         Self(ptr)
     }
 
-    fn adr(self) -> u64 {
+    unsafe fn get(&self) -> &mut PageMap {
+        &mut *self.0
+    }
+
+    pub fn adr(self) -> u64 {
         self.0 as u64
     }
 
-    fn to_phys_adr(self) -> u64 {
-        unsafe { pmm::hhdm_to_phys(self.adr()) }
+    pub unsafe fn map(self, virt: u64, pages: usize, phys: u64, flags: Flags) {
+        self.get().map(virt, pages, phys, flags);
     }
 
-    unsafe fn get(&self) -> &mut PageMap {
-        &mut *self.0
+    pub unsafe fn unmap(self, _virt: u64, _pages: usize) {}
+
+    pub fn to_phys_adr(self) -> u64 {
+        unsafe { pmm::hhdm_to_phys(self.adr()) }
     }
 
     pub fn entry(self, index: usize) -> &'static mut PageMapEntry {
@@ -111,7 +125,7 @@ mod get {
 
     pub unsafe fn allocate(page_map: PageMapPtr, index: usize, flags: Flags) -> PageMapPtr {
         let entry = page_map.entry(index);
-        if !entry.p() {
+        if !entry.p() && !entry.resv() {
             let new = PageMapPtr::new_alloc();
             *entry = PageMapEntry::new(new.to_phys_adr()).modify_with_flags(flags);
             new
@@ -158,7 +172,6 @@ impl PageMap {
     }
 
     unsafe fn install_ptr(ptr: *const Self) {
-        debug!("installing new page table {ptr:?}");
         unsafe {
             asm!(
                 "mov cr3, rax",
@@ -179,16 +192,16 @@ impl PageMap {
         fn mask(size: usize) -> u64 {
             !(size as u64 - 1)
         }
-        let present_flags = flags | Flags::PRESENT;
-        let resv_flags = flags | Flags::RESV;
+        let get_flags = Flags::PRESENT | Flags::RW | Flags::USER;
+        let set_flags = flags;
         if flags.has(Flags::SIZE_LARGE) {
             for _ in 0..pages {
                 let (d0, d1, _, _, _) = divide_virt_adr(virt);
                 set(
-                    get::allocate(ptr, d0, present_flags),
+                    get::allocate(ptr, d0, get_flags),
                     d1,
                     phys & mask(LARGE_PAGE_SIZE),
-                    resv_flags | Flags::PS,
+                    set_flags | Flags::PS,
                 );
                 virt += LARGE_PAGE_SIZE as u64;
                 phys += LARGE_PAGE_SIZE as u64;
@@ -197,10 +210,10 @@ impl PageMap {
             for _ in 0..pages {
                 let (d0, d1, d2, _, _) = divide_virt_adr(virt);
                 set(
-                    get::allocate(get::allocate(ptr, d0, present_flags), d1, present_flags),
+                    get::allocate(get::allocate(ptr, d0, get_flags), d1, get_flags),
                     d2,
                     phys & mask(MEDIUM_PAGE_SIZE),
-                    resv_flags | Flags::PS,
+                    set_flags | Flags::PS,
                 );
                 virt += MEDIUM_PAGE_SIZE as u64;
                 phys += MEDIUM_PAGE_SIZE as u64;
@@ -210,13 +223,13 @@ impl PageMap {
                 let (d0, d1, d2, d3, _) = divide_virt_adr(virt);
                 set(
                     get::allocate(
-                        get::allocate(get::allocate(ptr, d0, present_flags), d1, present_flags),
+                        get::allocate(get::allocate(ptr, d0, get_flags), d1, get_flags),
                         d2,
-                        present_flags,
+                        get_flags,
                     ),
                     d3,
                     phys & mask(SMALL_PAGE_SIZE),
-                    resv_flags,
+                    set_flags,
                 );
                 virt += SMALL_PAGE_SIZE as u64;
                 phys += SMALL_PAGE_SIZE as u64;
@@ -229,65 +242,19 @@ impl PageMap {
     }
 }
 
-pub(super) unsafe fn get_cur() -> PageMapPtr {
-    let out: u64;
-    asm!(
-        "mov {out}, cr3",
-        out = out(reg) out
-    );
-    PageMapPtr::new(pmm::phys_to_hhdm(out) as *mut _)
-}
-
 static mut KERNEL_PAGE_MAP_PTR: PageMapPtr = PageMapPtr(null_mut());
-static mut USER_PAGE_MAP_PTR: PageMapPtr = PageMapPtr(null_mut());
 
-pub unsafe fn init(boot_info: &BootInfo) {
+pub unsafe fn init() {
     // Map the kernel map.
     KERNEL_PAGE_MAP_PTR = PageMapPtr::new_alloc();
-    // Memory map physical memory as HHDM.
-    map(
-        KERNEL_PAGE_MAP_PTR,
-        pmm::hhdm_base(),
-        4,
-        0,
-        Flags::PRESENT | Flags::RW | Flags::SIZE_LARGE,
-    );
-    // Map kernel to high address.
-    let _s4kib = 4 << 10;
-    let _kernel_large_page_count = 2;
-    let kernel_page_count = 4096 * 4; //(kernel_large_page_count << 30) / s4kib;
-    let kernel_phys_adr = boot_info.kernel_address.physical_base;
-    let kernel_virt_adr = 0xffffffff80000000;
-    map(
-        KERNEL_PAGE_MAP_PTR,
-        kernel_virt_adr,
-        kernel_page_count,
-        kernel_phys_adr,
-        Flags::PRESENT | Flags::RW,
-    );
-    // Map the userspace map.
-    USER_PAGE_MAP_PTR = PageMapPtr::new_alloc();
-    // Memory map physical memory as HHDM.
-    map(
-        USER_PAGE_MAP_PTR,
-        pmm::hhdm_base(),
-        4,
-        0,
-        Flags::PRESENT | Flags::RW | Flags::SIZE_LARGE,
-    );
-    // Map kernel to high address.
-    let _s4kib = 4 << 10;
-    let _kernel_large_page_count = 2;
-    let kernel_page_count = 4096 * 4; //(kernel_large_page_count << 30) / s4kib;
-    let kernel_phys_adr = boot_info.kernel_address.physical_base;
-    let kernel_virt_adr = 0xffffffff80000000;
-    map(
-        USER_PAGE_MAP_PTR,
-        kernel_virt_adr,
-        kernel_page_count,
-        kernel_phys_adr,
-        Flags::PRESENT | Flags::RW,
-    );
+    for i in 256..PAGE_MAP_ENTRIES {
+        set(
+            KERNEL_PAGE_MAP_PTR,
+            i,
+            pmm::alloc_pages_zeroed(1).phys_adr(),
+            Flags::PRESENT | Flags::RW,
+        );
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -304,6 +271,7 @@ impl Flags {
 
     pub const SIZE_LARGE: Flags = Flags(1 << 16);
     pub const SIZE_MEDIUM: Flags = Flags(1 << 17);
+    pub const XD: Flags = Flags(1 << 18);
 
     pub fn merge(self, other: Self) -> Self {
         Self(self.0 | other.0)
@@ -328,7 +296,9 @@ pub fn kernel_page_map() -> PageMapPtr {
 
 pub unsafe fn new_userland_page_map() -> PageMapPtr {
     let ptr = PageMapPtr::new(pmm::alloc_pages_zeroed(1).as_virt_ptr());
-    ptr.0.copy_from(USER_PAGE_MAP_PTR.0, 1);
+    for i in 256..PAGE_MAP_ENTRIES {
+        *ptr.entry(i) = KERNEL_PAGE_MAP_PTR.entry(i).clone();
+    }
     ptr
 }
 
@@ -341,7 +311,9 @@ pub unsafe fn get_page_entry(map: PageMapPtr, virt: u64) -> Option<NonNull<PageM
 }
 
 pub unsafe fn map(map: PageMapPtr, virt: u64, pages: usize, phys: u64, flags: Flags) {
-    map.get().map(virt, pages, phys, flags);
+    map.map(virt, pages, phys, flags)
 }
 
-pub unsafe fn unmap(_map: PageMapPtr, _virt: u64, _pages: usize) {}
+pub unsafe fn unmap(map: PageMapPtr, _virt: u64, _pages: usize) {
+    map.unmap(_virt, _pages)
+}

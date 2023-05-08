@@ -1,10 +1,9 @@
-use crate::process::scheduler;
 use super::super::apic::lapic;
 use super::StackFrame;
+use crate::process::scheduler;
 
 #[no_mangle]
-unsafe extern "C" fn irq_timer(stackframe: *mut StackFrame) -> *mut StackFrame {
-    let new_stackframe = scheduler::step(stackframe);
+unsafe extern "C" fn irq_timer(stackframe: *mut StackFrame) {
+    scheduler::step(stackframe);
     lapic::eoi();
-    new_stackframe
 }

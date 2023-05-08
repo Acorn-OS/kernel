@@ -1,3 +1,5 @@
+use crate::mm::pmm;
+
 use super::interrupt;
 use core::arch::{asm, global_asm};
 use core::fmt::Debug;
@@ -38,10 +40,10 @@ struct Entry(u64);
 
 #[allow(dead_code)]
 impl Entry {
-    const fn new(base: u64, limit: u32, flags: u8, access: u8) -> Self {
+    const fn new(base: u32, limit: u32, flags: u8, access: u8) -> Self {
         let base_lo = (base & 0xFFFF) as u64;
-        let base_mid = ((base >> 16) & 0xF) as u64;
-        let base_hi = ((base >> 20) & 0xF) as u64;
+        let base_mid = ((base >> 16) & 0xFF) as u64;
+        let base_hi = ((base >> 24) & 0xFF) as u64;
         let limit_lo = (limit & 0xFFFF) as u64;
         let limit_hi = ((limit >> 16) & 0xF) as u64;
         let flags = (flags & 0xF) as u64;
@@ -59,6 +61,22 @@ impl Entry {
 
     const fn null() -> Self {
         Self::new(0, 0, 0, 0)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C, packed)]
+struct SegmentEntry(u128);
+
+impl SegmentEntry {
+    const fn null() -> Self {
+        Self::new(0, 0, 0, 0)
+    }
+
+    const fn new(base: u64, limit: u32, flags: u8, access: u8) -> Self {
+        let entry = Entry::new(base as u32, limit, flags, access);
+        let base_ext = (base >> 32) as u128;
+        Self(entry.0 as u128 | (base_ext << 64))
     }
 }
 
@@ -117,7 +135,7 @@ pub struct Gdt {
     // 0x20
     usrspc_data: Entry,
     // 0x28
-    tss: Entry,
+    tss: SegmentEntry,
 }
 
 impl Gdt {
@@ -128,7 +146,7 @@ impl Gdt {
             kernel_data: Entry::new(0, 0xffffff, KERNEL_DATA_FLAGS, KERNEL_DATA_ACCESS),
             usrspc_code: Entry::new(0, 0xffffff, USRSPC_CODE_FLAGS, USRSPC_CODE_ACCESS),
             usrspc_data: Entry::new(0, 0xffffff, USRSPC_DATA_FLAGS, USRSPC_DATA_ACCESS),
-            tss: Entry::new(
+            tss: SegmentEntry::new(
                 tss.addr().get() as u64,
                 size_of::<Tss>() as u32,
                 TSS_FLAGS,
@@ -161,4 +179,55 @@ impl Gdt {
             adr: self as *const _ as u64,
         }
     }
+}
+
+static mut GDT: Gdt = Gdt {
+    null: Entry::null(),
+    kernel_code: Entry::null(),
+    kernel_data: Entry::null(),
+    usrspc_code: Entry::null(),
+    usrspc_data: Entry::null(),
+    tss: SegmentEntry::null(),
+};
+
+static mut TSS: Tss = Tss {
+    _resv0: 0,
+    rsp0: 0,
+    rsp1: 0,
+    rsp2: 0,
+    _resv1: 0,
+    ist1: 0,
+    ist2: 0,
+    ist3: 0,
+    ist4: 0,
+    ist5: 0,
+    ist6: 0,
+    ist7: 0,
+    _resv2: 0,
+    _resv3: 0,
+    iopb: 0,
+};
+
+pub unsafe fn init() {
+    let stack_alloc = pmm::alloc_pages(16);
+    TSS = Tss {
+        rsp0: stack_alloc.virt_adr(),
+        rsp1: stack_alloc.virt_adr(),
+        rsp2: stack_alloc.virt_adr(),
+        ist1: 0,
+        ist2: 0,
+        ist3: 0,
+        ist4: 0,
+        ist5: 0,
+        ist6: 0,
+        ist7: 0,
+        iopb: 0,
+        ..Tss::default()
+    };
+    GDT = Gdt::new(NonNull::new_unchecked(&mut TSS as *mut _));
+}
+
+pub unsafe fn install() {
+    GDT.install();
+    GDT.use_tss(TSS_SELECTOR);
 }

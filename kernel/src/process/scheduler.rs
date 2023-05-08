@@ -64,7 +64,7 @@ pub fn deschedule(_process_id: ProcessId) {
     unimplemented!()
 }
 
-pub fn step(cur_stackframe: *mut StackFrame) -> *mut StackFrame {
+pub fn step(stackframe: *mut StackFrame) {
     let mut scheduler = SCHEDULER.lock();
     if let Some(running) = scheduler.running {
         unsafe {
@@ -73,21 +73,18 @@ pub fn step(cur_stackframe: *mut StackFrame) -> *mut StackFrame {
                 .expect("running proc")
                 .as_mut()
                 .main_thread
-                .kernel_stackframe = cur_stackframe
+                .stackframe = stackframe.read()
         };
     }
-    let mut stackframe = cur_stackframe;
     match scheduler.next() {
         Some(id)
             if let Some(mut proc) = scheduler.get_proc(id) =>  {
                 let proc = unsafe { proc.as_mut() };
-                stackframe = proc.main_thread.kernel_stackframe;
+                unsafe { stackframe.write(proc.main_thread.stackframe.clone()) };
                 scheduler.running = Some(id);
                 debug!("running processes '{id}'");
-                unsafe { proc.vmm.as_mut().install() };
             }
         _ => {}
     }
     scheduler.advance();
-    stackframe
 }

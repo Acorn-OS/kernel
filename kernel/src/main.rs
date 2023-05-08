@@ -42,6 +42,7 @@ mod logging;
 mod mm;
 mod panic;
 mod process;
+mod symbols;
 mod util;
 
 use crate::fs::{initrd, Vfs};

@@ -13,17 +13,33 @@ SECTIONS
 {
     . = 0xffffffff80000000;
 
+    __section_text_start = .;
+
     .text : {
         *(.text .text.*)
     } :text
 
+    __section_text_end = .;
+
     . += 0x1000;
+
+    __section_r_start = .;
 
     .rodata : {
         *(.rodata .rodata.*)
     } :rodata
 
+    .init_array : {
+        __init_array_beg = .;
+        KEEP(*(.init_array* .init_array.*))
+        __init_array_end = .;
+    } :rodata 
+
+    __section_r_end = .;
+
     . += 0x1000;
+
+    __section_rw_start = .;
 
     .data : {
         *(.data .data.*)
@@ -33,14 +49,10 @@ SECTIONS
         *(.limine_reqs)
     } :data
 
-    .init_array : {
-        __init_array_beg = .;
-        KEEP(*(.init_array* .init_array.*))
-        __init_array_end = .;
-    } :data 
-
     .bss : {
         *(COMMON)
         *(.bss .bss.*)
     } :data
+
+    __section_rw_end = .;
 }
