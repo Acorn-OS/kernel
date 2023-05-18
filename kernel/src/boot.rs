@@ -1,13 +1,13 @@
 use crate::arch::{self, interrupt};
-use crate::logging;
 use crate::mm::{heap, pmm, vmm};
+use crate::{kernel_elf, logging};
 use limine::limine_tag;
 
 pub type MMap = limine::LimineMemmapResponse;
 
 #[limine_tag]
 static LIMINE_KERNEL_ADDRESS: limine::LimineKernelAddressRequest =
-    limine::LimineKernelAddressRequest::new(0);
+    limine::LimineKernelAddressRequest::new(u64::MAX);
 
 #[limine_tag]
 static LIMINE_MMAP: limine::LimineMemmapRequest = limine::LimineMemmapRequest::new(u64::MAX);
@@ -21,12 +21,16 @@ static LIMINE_HHDM: limine::LimineHhdmRequest = limine::LimineHhdmRequest::new(u
 #[limine_tag]
 static LIMINE_MODULES: limine::LimineModuleRequest = limine::LimineModuleRequest::new(u64::MAX);
 
+static LIMINE_KERNEL_FILE: limine::LimineKernelFileRequest =
+    limine::LimineKernelFileRequest::new(u64::MAX);
+
 pub struct BootInfo {
     pub kernel_address: &'static limine::LimineKernelAddressResponse,
     pub rsdp: &'static limine::LimineRsdpResponse,
     pub mmap: &'static mut MMap,
     pub hhdm: &'static limine::LimineHhdmResponse,
     pub modules: &'static limine::LimineModuleResponse,
+    pub file: &'static limine::LimineKernelFileResponse,
 }
 
 impl BootInfo {
@@ -37,6 +41,7 @@ impl BootInfo {
             mmap: LIMINE_MMAP.get_response().get_mut().unwrap(),
             hhdm: LIMINE_HHDM.get_response().get().unwrap(),
             modules: LIMINE_MODULES.get_response().get().unwrap(),
+            file: LIMINE_KERNEL_FILE.get_response().get().unwrap(),
         }
     }
 }
@@ -69,6 +74,7 @@ pub unsafe extern "C" fn kernel_early() -> ! {
     arch::arch_init(&mut boot_info);
     heap::init();
     vmm::init(&boot_info);
+    kernel_elf::init(&boot_info);
     call_init_arrays();
     crate::main(boot_info)
 }

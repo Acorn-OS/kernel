@@ -10,4 +10,10 @@ stack_end:
 .global _start 
 _start:
     mov rsp, offset stack_end 
-    jmp kernel_early
+    push 0
+    mov rbp, 0
+    push rbp
+    call kernel_early
+hang:
+    hlt
+    jmp hang

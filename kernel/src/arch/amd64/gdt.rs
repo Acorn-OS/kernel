@@ -11,6 +11,8 @@ const KERNEL_CODE_FLAGS: u8 = 0xa;
 const KERNEL_DATA_ACCESS: u8 = 0x92;
 const KERNEL_DATA_FLAGS: u8 = 0xa;
 
+const USRSPC_CODE_32_ACCESS: u8 = 0xfa;
+const USRSPC_CODE_32_FLAGS: u8 = 0xc;
 const USRSPC_CODE_ACCESS: u8 = 0xfa;
 const USRSPC_CODE_FLAGS: u8 = 0xa;
 const USRSPC_DATA_ACCESS: u8 = 0xf2;
@@ -22,12 +24,6 @@ const TSS_FLAGS: u8 = 0;
 #[allow(unused)]
 const ENTRY_SIZE: u16 = core::mem::size_of::<Entry>() as u16;
 const_assert_eq!(ENTRY_SIZE, 8);
-
-pub const KERNEL_CODE_SELECTOR: u16 = ENTRY_SIZE;
-pub const KERNEL_DATA_SELECTOR: u16 = ENTRY_SIZE * 2;
-pub const USRSPC_CODE_SELECTOR: u16 = ENTRY_SIZE * 3;
-pub const USRSPC_DATA_SELECTOR: u16 = ENTRY_SIZE * 4;
-pub const TSS_SELECTOR: u16 = ENTRY_SIZE * 5;
 
 global_asm!(include_str!("gdt.s"));
 extern "sysv64" {
@@ -131,12 +127,21 @@ pub struct Gdt {
     // 0x10
     kernel_data: Entry,
     // 0x18
-    usrspc_code: Entry,
+    usrspc_code_32: Entry,
     // 0x20
     usrspc_data: Entry,
     // 0x28
+    usrspc_code: Entry,
+    // 0x30
     tss: SegmentEntry,
 }
+
+pub const KERNEL_CODE_SELECTOR: u16 = offset_of!(Gdt, kernel_code) as u16;
+pub const KERNEL_DATA_SELECTOR: u16 = offset_of!(Gdt, kernel_data) as u16;
+pub const TSS_SELECTOR: u16 = offset_of!(Gdt, tss) as u16;
+pub const USRSPC_CODE_32_SELECTOR: u16 = offset_of!(Gdt, usrspc_code_32) as u16;
+pub const USRSPC_DATA_SELECTOR: u16 = offset_of!(Gdt, usrspc_data) as u16;
+pub const USRSPC_CODE_SELECTOR: u16 = offset_of!(Gdt, usrspc_code) as u16;
 
 impl Gdt {
     pub fn new(tss: NonNull<Tss>) -> Self {
@@ -144,8 +149,9 @@ impl Gdt {
             null: Entry::null(),
             kernel_code: Entry::new(0, 0xffffff, KERNEL_CODE_FLAGS, KERNEL_CODE_ACCESS),
             kernel_data: Entry::new(0, 0xffffff, KERNEL_DATA_FLAGS, KERNEL_DATA_ACCESS),
-            usrspc_code: Entry::new(0, 0xffffff, USRSPC_CODE_FLAGS, USRSPC_CODE_ACCESS),
+            usrspc_code_32: Entry::new(0, 0xffffff, USRSPC_CODE_32_FLAGS, USRSPC_CODE_32_ACCESS),
             usrspc_data: Entry::new(0, 0xffffff, USRSPC_DATA_FLAGS, USRSPC_DATA_ACCESS),
+            usrspc_code: Entry::new(0, 0xffffff, USRSPC_CODE_FLAGS, USRSPC_CODE_ACCESS),
             tss: SegmentEntry::new(
                 tss.addr().get() as u64,
                 size_of::<Tss>() as u32,
@@ -185,9 +191,10 @@ static mut GDT: Gdt = Gdt {
     null: Entry::null(),
     kernel_code: Entry::null(),
     kernel_data: Entry::null(),
-    usrspc_code: Entry::null(),
-    usrspc_data: Entry::null(),
     tss: SegmentEntry::null(),
+    usrspc_code_32: Entry::null(),
+    usrspc_data: Entry::null(),
+    usrspc_code: Entry::null(),
 };
 
 static mut TSS: Tss = Tss {
@@ -209,12 +216,13 @@ static mut TSS: Tss = Tss {
 };
 
 pub unsafe fn init() {
-    let stack_alloc = pmm::alloc_pages(16);
+    let rsp_stack_alloc = pmm::alloc_pages(16);
+    let ist1_stack_alloc = pmm::alloc_pages(16);
     TSS = Tss {
-        rsp0: stack_alloc.virt_adr(),
-        rsp1: stack_alloc.virt_adr(),
-        rsp2: stack_alloc.virt_adr(),
-        ist1: 0,
+        rsp0: rsp_stack_alloc.virt_adr(),
+        rsp1: rsp_stack_alloc.virt_adr(),
+        rsp2: rsp_stack_alloc.virt_adr(),
+        ist1: ist1_stack_alloc.virt_adr(),
         ist2: 0,
         ist3: 0,
         ist4: 0,

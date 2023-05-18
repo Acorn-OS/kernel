@@ -48,7 +48,7 @@ pub fn new_kernel_proc(
 ) -> (NonNull<Process>, ProcessId) {
     let index = PROCESS_COUNTER.fetch_add(1, Ordering::Relaxed);
     let id = ProcessId(index);
-    info!("new kernel proc: '{:?}'", vmm.as_ptr());
+    info!("starting new process with ID: {index}");
     let process = unsafe {
         PROCESSES[index as usize] = heap::alloc(Process {
             vmm,

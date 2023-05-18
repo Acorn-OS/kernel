@@ -10,7 +10,11 @@ path = "src/main.rs"
 [members]
 members = [
     "deps/ctor",
+    "lib/syscall",
 ]
+
+[profiles.release]
+strip = "none"
 
 [dependencies]
 cfg-if = "1.0.0"
@@ -19,6 +23,7 @@ spin = "0.9.5"
 log = "0.4.17"
 proc-bitfield = "0.2.2"
 limine = {version = "0.1.10", features = ["requests-section"]}
+memoffset = "0.8.0"
 
 [dependencies.ctor]
 path = "deps/ctor"

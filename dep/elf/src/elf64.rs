@@ -282,6 +282,10 @@ fn assert_elf_header(data: &[u8]) -> Result<()> {
 }
 
 impl Elf64 {
+    pub unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> *const Self {
+        ptr::from_raw_parts_mut::<Elf64>(ptr as *mut _, len)
+    }
+
     pub fn parse_elf(data: Box<[u8]>) -> Result<Elf64Owned> {
         let len = data.len();
         let ptr = Box::into_raw(data) as *mut u8;

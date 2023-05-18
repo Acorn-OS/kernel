@@ -1,5 +1,8 @@
+pub mod idt;
+
 mod except;
 mod irq;
+mod syscall;
 
 use super::cpu::ctrl_regs::{cr0, cr4};
 use super::gdt;
@@ -109,6 +112,32 @@ extern "C" {
     pub static irq_routines: [extern "C" fn(); 256];
 }
 
+#[derive(Clone, Copy)]
+struct IsrMeta {
+    segment: u16,
+    ist: u8,
+    gate_type: idt::GateType,
+}
+
+static ISR_META_TBL: [IsrMeta; 256] = const {
+    let mut tbl = [IsrMeta {
+        segment: gdt::KERNEL_CODE_SELECTOR,
+        ist: 0,
+        gate_type: idt::GateType::Int,
+    }; 256];
+    // create exception metadata.
+    let mut i = 0;
+    while i < 32 {
+        tbl[i] = IsrMeta {
+            segment: gdt::KERNEL_CODE_SELECTOR,
+            ist: 1,
+            gate_type: idt::GateType::Trap,
+        };
+        i += 1;
+    }
+    tbl
+};
+
 pub fn disable() {
     unsafe { core::arch::asm!("cli") };
 }
@@ -121,4 +150,10 @@ pub fn halt() {
     unsafe {
         core::arch::asm!("hlt");
     }
+}
+
+pub unsafe fn init() {
+    idt::init();
+    idt::install();
+    syscall::init();
 }

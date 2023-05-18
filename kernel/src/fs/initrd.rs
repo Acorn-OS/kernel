@@ -44,7 +44,6 @@ impl InitrdFs {
 
     unsafe fn fs_open(&self, name: &str) -> Result<u64, Error> {
         let header = self.get_header();
-        info!("name: {name}");
         if name.len() > HEADER_NAME_LEN {
             return Err(Error::InvalidFile(
                 "file name was too large for initrd fs".to_string(),

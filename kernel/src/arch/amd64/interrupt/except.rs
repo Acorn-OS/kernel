@@ -81,7 +81,7 @@ unsafe extern "C" fn excpt_page_fault(_stackframe: *mut StackFrame) {
         adr = out(reg) adr
     );
     //debug_assert!(adr != 0, "nullptr");
-    panic!("page fault at adr {adr:?}")
+    panic!("page fault at adr {adr:016x}")
     //if let Some(mut entry) = vm::get_page_entry(vm::get_cur(), adr) {
     //    let entry = entry.as_mut();
     //    if entry.resv() {

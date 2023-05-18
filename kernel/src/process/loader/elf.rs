@@ -15,24 +15,34 @@ pub fn spawn(elf: &Elf64) -> (NonNull<Process>, ProcessId) {
 unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {
     // load program headers.
     for program_header in elf.program_headers() {
-        let bytes = program_header.p_memsz;
-        let vadr = program_header.p_vaddr;
-        let off = program_header.p_offset;
-        if vadr == 0 {
-            continue;
+        let mut bytes = program_header.p_memsz;
+        let mut vadr = program_header.p_vaddr;
+        let mut off = program_header.p_offset;
+        let pages = pages!(bytes) as usize;
+        for _ in 0..pages {
+            let hhdm = if let Some(phys) = vmm.virt_to_phys(vadr) {
+                pmm::phys_to_hhdm(phys)
+            } else {
+                let alloc = pmm::alloc_pages(1);
+                vmm.map(
+                    Some(align_floor!(vadr, pmm::PAGE_SIZE as u64)),
+                    1,
+                    Flags::Phys {
+                        flags: vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::USER,
+                        phys: alloc.phys_adr(),
+                    },
+                );
+                alloc.virt_adr()
+            };
+            let unalignment = (vadr & (pmm::PAGE_SIZE as u64 - 1)) as usize;
+            let hhdm = hhdm as *mut u8;
+            let step = (pmm::PAGE_SIZE - unalignment) as u64;
+            hhdm.add(unalignment)
+                .copy_from(elf.as_ptr().add(off as usize), step as usize);
+            vadr += step;
+            off += step;
+            bytes = bytes.saturating_sub(step);
         }
-        let pages = bytes.div_ceil(pmm::PAGE_SIZE as u64) as usize;
-        let alloced = pmm::alloc_pages(pages);
-        let alloced_vptr = alloced.as_virt_ptr::<u8>();
-        alloced_vptr.copy_from(elf.as_ptr().add(off as usize), bytes as usize);
-        vmm.map(
-            Some(vadr),
-            pages,
-            Flags::Phys {
-                flags: vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::USER,
-                phys: alloced.phys_adr(),
-            },
-        );
     }
     vmm
 }

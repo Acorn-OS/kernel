@@ -2,13 +2,13 @@ pub mod cpuc;
 pub mod fb;
 pub mod interrupt;
 pub mod serial;
+pub mod stack_unwind;
 pub mod vm;
 
 mod apic;
 mod boot;
 mod cpu;
 mod gdt;
-mod idt;
 mod msr;
 mod pic;
 mod port;
@@ -22,9 +22,8 @@ pub unsafe fn arch_init(boot_info: &mut BootInfo) {
     trace!("initializing GDT");
     gdt::init();
     gdt::install();
-    trace!("initializing IDT");
-    idt::init();
-    idt::install();
+    trace!("initializing interrupts");
+    interrupt::init();
     trace!("initializing vm");
     vm::init();
     trace!("initializing core structures");

@@ -2,10 +2,8 @@ use crate::mm::pmm;
 
 use super::super::{cpuc, msr};
 
-const BASE_LAPIC_MSR: u32 = 0x1b;
-
 fn get_local_apic_base_adr() -> u64 {
-    msr::get(BASE_LAPIC_MSR) & 0xffffff000
+    msr::get(msr::BASE_LAPIC_MSR) & 0xffffff000
 }
 
 fn set_local_apic_base_adr(_v: u64) {
@@ -13,9 +11,9 @@ fn set_local_apic_base_adr(_v: u64) {
 }
 
 fn toggle_enabled_local_apic(v: bool) {
-    let mut apic = msr::get(BASE_LAPIC_MSR);
+    let mut apic = msr::get(msr::BASE_LAPIC_MSR);
     btoggle!(apic, 11, v);
-    msr::set(BASE_LAPIC_MSR, apic)
+    msr::set(msr::BASE_LAPIC_MSR, apic)
 }
 
 #[derive(Clone, Copy)]

@@ -13,19 +13,19 @@ impl log::Log for Logger {
         let mut_self = unsafe { &mut *(self as *const Self as *mut Self) };
         match record.level() {
             log::Level::Error => {
-                write!(
+                writeln!(
                     mut_self,
-                    "{} {}:",
+                    "\n{}:{}\n{}",
                     record.file().unwrap(),
-                    record.line().unwrap()
+                    record.line().unwrap(),
+                    record.args()
                 );
-                writeln!(mut_self, "[E] {}", record.args());
             }
             log::Level::Warn => {
                 writeln!(mut_self, "[W] {}", record.args());
             }
             log::Level::Info => {
-                writeln!(mut_self, "[I] {}", record.args());
+                writeln!(mut_self, "{}", record.args());
             }
             log::Level::Debug => {
                 writeln!(mut_self, "[D] {}", record.args());

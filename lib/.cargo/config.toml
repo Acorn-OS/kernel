@@ -1,2 +1,6 @@
+[unstable]
+build-std = ["core", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
+
 [build]
 target-dir = "../build/artf/lib"

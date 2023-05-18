@@ -45,6 +45,11 @@ pub mod vm {
     use core::ptr::NonNull;
 
     pub use vm::PageMapEntry;
+
+    assert_fn!(PageMapEntry::adr: fn(&PageMapEntry) -> u64);
+    assert_fn!(PageMapEntry::set_adr: fn(&mut PageMapEntry, u64));
+    assert_fn!(PageMapEntry::present: fn(&PageMapEntry) -> bool);
+
     pub use vm::PageMapPtr;
 
     pub use vm::Flags;
@@ -101,6 +106,16 @@ pub mod interrupt {
     export_assert_fn!(interrupt::halt: fn());
     export_assert_fn!(interrupt::enable: fn());
     export_assert_fn!(interrupt::disable: fn());
+}
+
+pub mod stack_unwind {
+    use super::imp::stack_unwind;
+
+    pub use stack_unwind::StackFrame;
+
+    assert_fn!(StackFrame::ip: fn(&StackFrame) -> u64);
+    assert_fn!(StackFrame::next: fn(&StackFrame) -> *const StackFrame);
+    assert_fn!(StackFrame::from_current_stackframe: unsafe fn() -> *const StackFrame);
 }
 
 export_assert_fn!(imp::arch_init: unsafe fn(&mut BootInfo));

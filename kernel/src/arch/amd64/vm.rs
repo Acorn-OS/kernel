@@ -55,6 +55,10 @@ impl PageMapEntry {
         self.set_inner_adr(adr >> 12)
     }
 
+    pub fn present(&self) -> bool {
+        self.p()
+    }
+
     fn modify_with_flags(&mut self, flags: Flags) -> Self {
         self.0 |= flags.0 as u64 & 0xfff;
         self.set_xd(flags.has(Flags::XD));
@@ -125,12 +129,12 @@ mod get {
 
     pub unsafe fn allocate(page_map: PageMapPtr, index: usize, flags: Flags) -> PageMapPtr {
         let entry = page_map.entry(index);
-        if !entry.p() && !entry.resv() {
+        if entry.p() && entry.ps() {
+            panic!("reallocating page")
+        } else if !entry.p() && !entry.resv() {
             let new = PageMapPtr::new_alloc();
             *entry = PageMapEntry::new(new.to_phys_adr()).modify_with_flags(flags);
             new
-        } else if entry.p() && entry.ps() {
-            panic!("reallocating page")
         } else {
             PageMapPtr::new(pmm::phys_to_hhdm(entry.adr()) as *mut _)
         }
@@ -138,10 +142,10 @@ mod get {
 
     pub unsafe fn get(page_map: PageMapPtr, index: usize) -> Option<PageMapPtr> {
         let entry = page_map.entry(index);
-        if !entry.p() {
-            None
-        } else if entry.p() && entry.ps() {
+        if entry.p() && entry.ps() {
             panic!("reallocating page")
+        } else if !entry.p() {
+            None
         } else {
             Some(PageMapPtr::new(pmm::phys_to_hhdm(entry.adr()) as *mut _))
         }
@@ -155,9 +159,7 @@ unsafe fn set(page_map: PageMapPtr, index: usize, phys: u64, flags: Flags) {
 }
 
 unsafe fn get(page_map: PageMapPtr, index: usize) -> NonNull<PageMapEntry> {
-    debug_assert!(index < 512);
-    let index = index & 0x1FF;
-    NonNull::new(page_map.entry(index) as *mut _).unwrap_unchecked()
+    NonNull::new_unchecked(page_map.entry(index) as *mut _)
 }
 
 impl PageMap {
@@ -259,6 +261,7 @@ pub unsafe fn init() {
 
 #[derive(Clone, Copy)]
 #[must_use]
+#[repr(transparent)]
 pub struct Flags(u32);
 
 impl Flags {
@@ -273,11 +276,11 @@ impl Flags {
     pub const SIZE_MEDIUM: Flags = Flags(1 << 17);
     pub const XD: Flags = Flags(1 << 18);
 
-    pub fn merge(self, other: Self) -> Self {
+    pub const fn merge(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
-    pub fn has(self, flags: Flags) -> bool {
+    pub const fn has(self, flags: Flags) -> bool {
         self.0 & flags.0 == flags.0
     }
 }

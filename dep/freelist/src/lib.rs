@@ -20,6 +20,7 @@ use alloc::slice;
 use alloc::string::ToString;
 use core::alloc::{GlobalAlloc, Layout};
 use core::fmt::{Debug, Display};
+use core::ops::{Deref, DerefMut};
 use core::ptr::{null_mut, NonNull};
 use spin::Mutex;
 
@@ -152,7 +153,7 @@ impl<A: Allocator> FreeList<A> {
         node_free(node, &self.allocator);
     }
 
-    fn contains_range(&mut self, start: u64, len: usize) -> bool {
+    fn contains_range(&self, start: u64, len: usize) -> bool {
         let mut head = self.head;
         let end = start as u128 + len as u128;
         while !head.is_null() {
@@ -234,10 +235,13 @@ impl<A: Allocator> FreeList<A> {
         Err(Error::InsufficientSpace)
     }
 
+    pub fn alloc_layout(&mut self, layout: Layout) -> Result<*mut u8> {
+        self.alloc_aligned_bytes(layout.align(), layout.size())
+    }
+
     pub fn alloc<T>(&mut self) -> Result<*mut T> {
         let layout = Layout::new::<T>();
-        self.alloc_aligned_bytes(layout.align(), layout.size())
-            .map(|v| v as *mut T)
+        self.alloc_layout(layout).map(|v| v as *mut T)
     }
 
     unsafe fn insert_node(&mut self, node: *mut Node) {
@@ -349,7 +353,22 @@ impl<A: Allocator> FreeList<A> {
     }
 }
 
+#[repr(transparent)]
 pub struct FreeListAllocator<A: Allocator = Global>(Mutex<FreeList<A>>);
+
+impl<A: Allocator> Deref for FreeListAllocator<A> {
+    type Target = Mutex<FreeList<A>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<A: Allocator> DerefMut for FreeListAllocator<A> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 unsafe impl<A: Allocator + Sync> Sync for FreeListAllocator<A> {}
 
@@ -368,18 +387,6 @@ impl FreeListAllocator<Global> {
 impl<A: Allocator> FreeListAllocator<A> {
     pub const unsafe fn with_allocator(a: A) -> Self {
         Self(Mutex::new(FreeList::with_allocator(a)))
-    }
-
-    pub unsafe fn push_node(&self, node: *mut Node) {
-        self.0.lock().push_node_raw(node);
-    }
-
-    pub fn push_region(&self, adr: u64, len: usize) -> Result<()> {
-        self.0.lock().push_region(adr, len)
-    }
-
-    pub fn reserve_bytes(&self, adr: u64, count: usize) -> Result<()> {
-        self.0.lock().reserve_bytes(adr, count)
     }
 }
 

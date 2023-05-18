@@ -1,9 +1,9 @@
-use super::gdt::KERNEL_CODE_SELECTOR;
 use core::arch::asm;
 use core::mem::size_of;
 
+#[derive(Clone, Copy)]
 #[repr(u8)]
-enum GateType {
+pub(super) enum GateType {
     Int = 0xE,
     Trap = 0xF,
 }
@@ -39,7 +39,7 @@ impl Entry {
 }
 
 #[repr(C, align(16))]
-pub struct Idt {
+struct Idt {
     entries: [Entry; 256],
 }
 
@@ -48,22 +48,19 @@ impl Idt {
         let mut idt = Idt {
             entries: [Entry(0); 256],
         };
-        for (i, f) in unsafe { super::interrupt::irq_routines }
+        for (i, (f, m)) in unsafe { super::irq_routines }
             .iter()
             .cloned()
+            .zip(super::ISR_META_TBL.iter())
             .enumerate()
         {
             idt.set_entry(i as u8, {
                 let mut entry = Entry(0);
                 entry.set_offset(f as u64);
                 entry.set_p(true);
-                entry.set_segment_selector(KERNEL_CODE_SELECTOR);
-                entry.set_ist(0);
-                if i < 32 {
-                    entry.set_gate(GateType::Trap);
-                } else {
-                    entry.set_gate(GateType::Int);
-                }
+                entry.set_segment_selector(m.segment);
+                entry.set_ist(m.ist);
+                entry.set_gate(m.gate_type);
                 entry
             })
         }

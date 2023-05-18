@@ -11,6 +11,7 @@
 #![feature(ptr_metadata)]
 #![feature(ptr_from_ref)]
 #![feature(if_let_guard)]
+#![feature(inline_const)]
 #![feature(strict_provenance)]
 
 #[macro_use]
@@ -34,10 +35,17 @@ extern crate bitset;
 #[macro_use]
 extern crate alloc;
 
+#[macro_use]
+extern crate memoffset;
+
+#[macro_use]
+mod macros;
+
 mod arch;
 mod boot;
 mod drivers;
 mod fs;
+mod kernel_elf;
 mod logging;
 mod mm;
 mod panic;

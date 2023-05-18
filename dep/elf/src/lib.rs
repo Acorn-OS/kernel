@@ -11,6 +11,8 @@ extern crate static_assertions;
 
 pub mod elf64;
 
+pub mod dwarf;
+
 #[allow(unused)]
 mod elf32;
 

@@ -100,13 +100,6 @@ pub fn free_pages(pages: PagePtr) {
 }
 
 pub unsafe fn init(boot_info: &mut BootInfo) {
-    fn align_floor(val: usize, align: usize) -> usize {
-        val.div_floor(align) * align
-    }
-
-    fn align_ceil(val: usize, align: usize) -> usize {
-        val.div_ceil(align) * align
-    }
     HHDM_BASE = boot_info.hhdm.offset;
     info!("HHDM base at 0x{HHDM_BASE:016x}");
     let mmap = &mut boot_info.mmap;

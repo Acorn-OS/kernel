@@ -9,4 +9,6 @@ target-dir = "../build/artf/kernel"
 [target.acorn_amd64]
 rustflags = [
 	"-C", "link-arg=-Tamd64.ld",
+	"-C", "force-frame-pointers",
+	"-C", "force-unwind-tables",
 ]

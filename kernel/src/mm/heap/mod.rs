@@ -5,15 +5,44 @@ use alloc::alloc::Global;
 use bitmap::BitMapPtrAllocator;
 use core::alloc::{Allocator, Layout};
 use core::ptr::{null_mut, NonNull};
-
-const PAGE_COUNT: usize = 256;
+use freelist::{Error as FreeListError, FreeList};
 
 type NodeAllocator = BitMapPtrAllocator<3>;
 type AllocatorTy = freelist::FreeListAllocator<NodeAllocator>;
 
+struct GlobalAlloc {
+    allocator: AllocatorTy,
+}
+
+unsafe impl core::alloc::GlobalAlloc for GlobalAlloc {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let mut allocator = self.allocator.lock();
+        match FreeList::alloc_layout(&mut allocator, layout) {
+            Ok(ptr) => ptr,
+            Err(FreeListError::InsufficientSpace) => {
+                let pages = pages!(layout.size());
+                allocator
+                    .push_region(pmm::alloc_pages(pages).virt_adr(), pages * pmm::PAGE_SIZE)
+                    .expect("failed to allocate additional nodes");
+                allocator.alloc_layout(layout).unwrap_or(null_mut())
+            }
+            Err(_) => null_mut(),
+        }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        debug_assert!(!ptr.is_null());
+        self.allocator
+            .deallocate(NonNull::new_unchecked(ptr), layout)
+    }
+}
+
 #[global_allocator]
-static mut GLOBAL_ALLOC: AllocatorTy =
-    unsafe { AllocatorTy::with_allocator(NodeAllocator::new(null_mut(), 0, null_mut())) };
+static mut GLOBAL_ALLOC: GlobalAlloc = GlobalAlloc {
+    allocator: unsafe {
+        AllocatorTy::with_allocator(NodeAllocator::new(null_mut(), 0, null_mut()))
+    },
+};
 
 pub unsafe fn alloc_bytes(count: usize) -> NonNull<u8> {
     debug_assert!(count <= isize::MAX as usize);
@@ -57,16 +86,12 @@ pub fn dealloc<T>(ptr: *const T) {
 pub unsafe fn init() {
     let bitmap_len = pmm::PAGE_SIZE;
     let bitmap_base = pmm::alloc_pages(bitmap_len.div_ceil(pmm::PAGE_SIZE * 8));
-    let bitmap_alloc =
-        pmm::alloc_pages((bitmap_len * NodeAllocator::PAGE_SIZE).div_floor(pmm::PAGE_SIZE));
-    GLOBAL_ALLOC = AllocatorTy::with_allocator(BitMapPtrAllocator::new(
-        bitmap_base.as_virt_ptr(),
-        bitmap_len,
-        bitmap_alloc.as_virt_ptr(),
-    ));
-    let virtual_base = pmm::alloc_pages(PAGE_COUNT).virt_adr();
-    info!("heap virtual base 0x{virtual_base:016x} and 0x{PAGE_COUNT:x} pages");
-    GLOBAL_ALLOC
-        .push_region(virtual_base, PAGE_COUNT * pmm::PAGE_SIZE)
-        .expect("unable to push region into global heap");
+    let bitmap_alloc = pmm::alloc_pages(pages!(bitmap_len * NodeAllocator::PAGE_SIZE));
+    GLOBAL_ALLOC = GlobalAlloc {
+        allocator: AllocatorTy::with_allocator(BitMapPtrAllocator::new(
+            bitmap_base.as_virt_ptr(),
+            bitmap_len,
+            bitmap_alloc.as_virt_ptr(),
+        )),
+    };
 }

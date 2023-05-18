@@ -47,9 +47,10 @@ impl VirtualMemory {
         let allocated_size = page_size * pages;
         let virt = if let Some(virt) = virt {
             debug_assert!(
-                virt & (page_size - 1) as u64 == 0,
+                is_aligned!(virt, page_size as u64),
                 "unaligned virtual address"
             );
+            let virt = align_floor!(virt, page_size as u64);
             self.allocator
                 .reserve_bytes(virt, allocated_size)
                 .expect("failed to reserve bytes");
@@ -61,11 +62,29 @@ impl VirtualMemory {
         };
         match flags {
             Flags::Phys { flags, phys } => {
-                let phys = phys & !(page_size - 1) as u64;
+                debug_assert!(is_aligned!(phys, page_size as u64));
+                let phys = align_floor!(phys, page_size as u64);
                 unsafe { vm::map(self.root_map, virt, pages, phys, flags) };
             }
         }
         virt
+    }
+
+    pub fn contains_page(&self, virt: u64) -> bool {
+        self.virt_to_phys(virt).is_some()
+    }
+
+    pub fn virt_to_phys(&self, virt: u64) -> Option<u64> {
+        if let Some(entry) = unsafe { vm::get_page_entry(self.root_map, virt) } {
+            let entry = unsafe { entry.as_ref() };
+            if entry.present() {
+                Some(entry.adr())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub unsafe fn unmap(&mut self, _ptr: *mut u8, _pages: usize) {}
@@ -130,10 +149,9 @@ pub unsafe fn init(boot_info: &BootInfo) {
         .expect("failed to reserve memory");
     // Map kernel text section.
     let mut kernel_phys_adr = boot_info.kernel_address.physical_base;
-    let section_text_start =
-        symbols::section_text_start().div_floor(PAGE_SIZE as u64) * PAGE_SIZE as u64;
+    let section_text_start = align_floor!(symbols::section_text_start(), PAGE_SIZE as u64);
     let section_text_len = symbols::section_text_end() - section_text_start;
-    let section_text_pages = section_text_len.div_ceil(PAGE_SIZE as u64);
+    let section_text_pages = pages!(section_text_len) as u64;
     kernel_vmm.map(
         Some(section_text_start),
         section_text_pages as usize,
@@ -144,9 +162,9 @@ pub unsafe fn init(boot_info: &BootInfo) {
     );
     kernel_phys_adr += section_text_pages * PAGE_SIZE as u64;
     // Map kernel read only section.
-    let section_r_start = symbols::section_r_start().div_floor(PAGE_SIZE as u64) * PAGE_SIZE as u64;
+    let section_r_start = align_floor!(symbols::section_r_start(), PAGE_SIZE as u64);
     let section_r_len = symbols::section_r_end() - section_r_start;
-    let section_r_pages = section_r_len.div_ceil(PAGE_SIZE as u64);
+    let section_r_pages = pages!(section_r_len) as u64;
     kernel_vmm.map(
         Some(section_r_start),
         section_r_pages as usize,
@@ -157,10 +175,9 @@ pub unsafe fn init(boot_info: &BootInfo) {
     );
     kernel_phys_adr += section_r_pages * PAGE_SIZE as u64;
     // Map kernel read and write section.
-    let section_rw_start =
-        symbols::section_rw_start().div_floor(PAGE_SIZE as u64) * PAGE_SIZE as u64;
+    let section_rw_start = align_floor!(symbols::section_rw_start(), PAGE_SIZE as u64);
     let section_rw_len = symbols::section_rw_end() - section_rw_start;
-    let section_rw_pages = section_rw_len.div_ceil(PAGE_SIZE as u64);
+    let section_rw_pages = pages!(section_rw_len);
     kernel_vmm.map(
         Some(section_rw_start),
         section_rw_pages as usize,
