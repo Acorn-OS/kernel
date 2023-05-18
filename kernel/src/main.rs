@@ -51,6 +51,7 @@ mod mm;
 mod panic;
 mod process;
 mod symbols;
+mod syscall;
 mod util;
 
 use crate::fs::{initrd, Vfs};

@@ -1,8 +1,6 @@
 use crate::arch::imp::gdt;
 use crate::arch::imp::msr;
-use alloc::slice;
 use core::arch::global_asm;
-use core::str;
 
 pub fn init() {
     msr::set(msr::IA32_EFER, msr::get(msr::IA32_EFER) | 1);
@@ -21,14 +19,6 @@ extern "C" {
 global_asm!(include_str!("syscall.s"));
 
 #[no_mangle]
-unsafe extern "C" fn syscall_handler(syscall: u64, param0: u64, param1: u64) {
-    match syscall {
-        0x10 => kprint(param0 as *const _, param1 as usize),
-        _ => panic!("invalid syscall '{syscall}'"),
-    }
-}
-
-unsafe fn kprint(ptr: *const u8, len: usize) {
-    let str = str::from_utf8_unchecked(slice::from_raw_parts(ptr, len));
-    info!("kprint: {str}");
+unsafe extern "C" fn syscall_handler(syscall: u64, param0: u64, param1: u64) -> u64 {
+    crate::syscall::syscall(syscall, param0, param1)
 }

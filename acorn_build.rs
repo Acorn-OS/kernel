@@ -298,7 +298,7 @@ fn main() {
         &PathBuf::from(thirdparty::limine::LIMINE_SYS),
     );
     let initrd = Initrd::create(
-        vec!["build/modules/test_bin", "build/modules/ps2"],
+        vec!["build/modules/ps2"],
         format!("{}/initrd", path::build().display()).into(),
     );
     iso_root.put_module(initrd.output());

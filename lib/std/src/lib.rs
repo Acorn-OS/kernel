@@ -50,9 +50,8 @@ pub use core::u64;
 pub use core::u8;
 pub use core::usize;
 
+/// exported macros not found in `core` or `alloc`
+mod macros;
+
 /// userspace global allocator.
 mod global_alloc;
-
-pub fn test_print(msg: &str) {
-    libk::syscall::kprint(msg);
-}
