@@ -93,6 +93,7 @@ static mut IDT: Idt = Idt {
 };
 
 pub unsafe fn init() {
+    trace!("initializing IDT");
     IDT = Idt::new();
 }
 

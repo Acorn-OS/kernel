@@ -1,7 +1,7 @@
+use super::super::msr;
+use crate::arch::imp::cpu;
 use crate::mm::pmm;
 use crate::util::adr::{PhysAdr, VirtAdr};
-
-use super::super::{cpuc, msr};
 
 fn get_local_apic_base_adr() -> PhysAdr {
     PhysAdr::new(msr::get(msr::BASE_LAPIC_MSR) & 0xffffff000)
@@ -80,6 +80,6 @@ pub unsafe fn create_local() -> LApicPtr {
 }
 
 pub unsafe fn eoi() {
-    let mut ptr = cpuc::get_kernel();
-    ptr.as_mut().lapic_ptr.eoi();
+    let core = cpu::cur_core().as_mut();
+    core.lapic_ptr.eoi();
 }

@@ -1,5 +1,3 @@
-mod primordial;
-
 use crate::mm::pmm;
 use alloc::alloc::Global;
 use allocators::bitmap::BitMapPtrAllocator;
@@ -64,7 +62,7 @@ pub fn alloc_layout(layout: Layout) -> NonNull<u8> {
         .cast::<u8>()
 }
 
-pub fn dealloc_layout(ptr: NonNull<u8>, layout: Layout) {
+pub fn free_layout(ptr: NonNull<u8>, layout: Layout) {
     unsafe { Global.deallocate(ptr, layout) }
 }
 
@@ -77,10 +75,10 @@ pub fn alloc<T>(val: T) -> NonNull<T> {
     ptr
 }
 
-pub fn dealloc<T>(ptr: *const T) {
+pub fn free<T>(ptr: *const T) {
     debug_assert!(!ptr.is_null());
     let layout = Layout::new::<T>();
-    dealloc_layout(unsafe { NonNull::new_unchecked(ptr as *mut u8) }, layout)
+    free_layout(unsafe { NonNull::new_unchecked(ptr as *mut u8) }, layout)
 }
 
 pub unsafe fn init() {

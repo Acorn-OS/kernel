@@ -11,6 +11,7 @@ const ICW4_8086: u8 = 0x01;
 const EOI: u8 = 0x20;
 
 pub unsafe fn disable() {
+    trace!("disabling PIC");
     // start initialization of the PICs.
     out8(PIC0_CMD, ICW1_INIT | ICW1_ICW4);
     out8(PIC1_CMD, ICW1_INIT | ICW1_ICW4);

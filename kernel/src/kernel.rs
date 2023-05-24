@@ -55,7 +55,6 @@ mod process;
 mod symbols;
 mod util;
 
-use crate::fs::{initrd, Vfs};
 use alloc::string::String;
 use boot::BootInfo;
 use core::ffi::CStr;
@@ -71,22 +70,5 @@ fn main(boot_info: BootInfo) -> ! {
         };
         info!("    {}", String::from_utf8_lossy(path.to_bytes()));
     }
-    let mut initrd = None;
-    for i in 0..boot_info.modules.module_count as usize {
-        let ptr = unsafe { boot_info.modules.modules.as_ptr().add(i) };
-        let path = unsafe { CStr::from_ptr((*ptr).path.as_ptr().unwrap()) };
-        if path.to_bytes() == "/modules/initrd".as_bytes() {
-            let mut vfs = unsafe {
-                initrd::InitrdFs::from_raw((*ptr).base.as_ptr().unwrap(), (*ptr).length as usize)
-            };
-            let metadata = vfs.ls("").unwrap();
-            info!("found {} files in initrd", metadata.len());
-            info!("initrd:");
-            for metadata in metadata {
-                info!("    {} {}", metadata.name, metadata.size);
-            }
-            initrd = Some(vfs);
-        }
-    }
-    process::run(initrd.expect("failed to locate initrd"))
+    process::run()
 }

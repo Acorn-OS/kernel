@@ -69,19 +69,10 @@ pub mod vm {
     export_assert_fn!(vm::unmap: unsafe fn(PageMapPtr, VirtAdr, usize));
     export_assert_fn!(vm::install: unsafe fn(PageMapPtr));
     export_assert_fn!(vm::new_userland_page_map: unsafe fn() -> PageMapPtr);
-    export_assert_fn!(vm::kernel_page_map: fn() -> PageMapPtr);
+    export_assert_fn!(vm::kernel_page_map: unsafe fn() -> PageMapPtr);
     export_assert_fn!(
         vm::get_page_entry: unsafe fn(PageMapPtr, VirtAdr) -> Option<NonNull<PageMapEntry>>
     );
-}
-
-pub mod cpuc {
-    use super::imp::cpuc;
-    use core::ptr::NonNull;
-
-    pub use cpuc::Core;
-
-    export_assert_fn!(cpuc::get_kernel: fn() -> NonNull<Core>);
 }
 
 pub mod fb {
@@ -119,7 +110,36 @@ pub mod stack_unwind {
     assert_fn!(StackFrame::from_current_stackframe: unsafe fn() -> *const StackFrame);
 }
 
-pub mod process {}
+pub mod thread {
+    use super::imp::thread;
+    use super::interrupt::StackFrame;
+    use crate::process::Process;
+    use crate::util::adr::VirtAdr;
+    use core::ptr::NonNull;
+
+    pub use thread::ThreadId;
+
+    assert_fn!(ThreadId::new: fn(u64) -> ThreadId);
+
+    pub use thread::Thread;
+
+    assert_fn!(Thread::update_stackframe: unsafe fn(&mut Thread, StackFrame));
+    assert_fn!(Thread::get_stackframe: fn(&Thread) -> StackFrame);
+
+    export_assert_fn!(
+        thread::new: unsafe fn(NonNull<Process>, ThreadId, VirtAdr, VirtAdr) -> NonNull<Thread>
+    );
+
+    export_assert_fn!(thread::free: unsafe fn(*mut Thread));
+    export_assert_fn!(thread::cur_thread: fn() -> NonNull<Thread>);
+    export_assert_fn!(thread::set_thread: unsafe fn(NonNull<Thread>));
+}
+
+pub mod panic {
+    use super::imp::panic;
+
+    export_assert_fn!(panic::print_regs: fn());
+}
 
 pub use imp::padr;
 pub use imp::vadr;

@@ -5,7 +5,7 @@ stack_beg:
 stack_end:
 
 .code64
-.section .text
+.section .text.boot
 .extern kernel_early
 .global _start 
 _start:

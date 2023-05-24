@@ -58,6 +58,7 @@ unsafe fn validate(rsdt: &Rsdt) -> bool {
 }
 
 pub unsafe fn init(boot_info: &BootInfo) -> &'static Rsdt {
+    trace!("initializing the SDT structures");
     let rsdp = get_rsdp(boot_info);
     let rsdt = get_base(rsdp);
     assert!(validate(rsdt), "the RSDT could not be validated");

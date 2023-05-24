@@ -16,6 +16,7 @@ SECTIONS
     __section_text_start = .;
 
     .text : {
+        KEEP(*(.text.boot))
         *(.text .text.*)
     } :text
 

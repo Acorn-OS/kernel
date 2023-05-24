@@ -216,6 +216,7 @@ static mut TSS: Tss = Tss {
 };
 
 pub unsafe fn init() {
+    trace!("initializing GDT");
     let rsp_stack_alloc = pmm::alloc_pages(16);
     let ist1_stack_alloc = pmm::alloc_pages(16);
     TSS = Tss {

@@ -19,6 +19,7 @@ unsafe fn unwind_stack() {
 unsafe fn panic(info: &PanicInfo) -> ! {
     interrupt::disable();
     error!("[PANIC] {info}\n");
+    crate::arch::panic::print_regs();
     unwind_stack();
     loop {
         interrupt::halt();

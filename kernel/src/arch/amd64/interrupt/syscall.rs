@@ -3,6 +3,7 @@ use crate::arch::imp::msr;
 use core::arch::global_asm;
 
 pub fn init() {
+    trace!("initializing syscalls");
     msr::set(msr::IA32_EFER, msr::get(msr::IA32_EFER) | 1);
     msr::set(
         msr::IA32_STAR,

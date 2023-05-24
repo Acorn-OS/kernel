@@ -75,10 +75,10 @@ pub unsafe extern "C" fn kernel_early() -> ! {
     arch::arch_init(&mut boot_info);
     trace!("initializing heap");
     heap::init();
-    trace!("initilizing vmm");
-    vmm::init(&boot_info);
     trace!("initializing kernel elf");
     kernel_elf::init(&boot_info);
+    trace!("initializing kernel vmm");
+    vmm::init_kernel(&boot_info);
     trace!("calling init arrays");
     call_init_arrays();
     trace!("entering kernel main...");

@@ -9,6 +9,7 @@ pub const IA32_FMASK: Msr = 0xc0000084;
 
 pub const KERNEL_GS_BASE: u32 = 0xc0000102;
 pub const GS_BASE: u32 = 0xc0000101;
+pub const FS_BASE: u32 = 0xC0000100;
 
 pub const BASE_LAPIC_MSR: u32 = 0x1b;
 

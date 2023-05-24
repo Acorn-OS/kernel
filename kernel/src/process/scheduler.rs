@@ -1,5 +1,6 @@
 use super::{Process, ProcessId};
 use crate::arch::interrupt::StackFrame;
+use crate::arch::thread;
 use core::ptr::NonNull;
 use spin::Mutex;
 
@@ -7,7 +8,6 @@ const MAX_SCHEDULED_PROCS: usize = 256;
 
 struct Scheduler {
     procs: [ProcessId; MAX_SCHEDULED_PROCS],
-    running: Option<ProcessId>,
     count: usize,
     cur: usize,
 }
@@ -50,7 +50,6 @@ impl Scheduler {
 
 static SCHEDULER: Mutex<Scheduler> = Mutex::new(Scheduler {
     procs: [ProcessId(0); MAX_SCHEDULED_PROCS],
-    running: None,
     count: 0,
     cur: 0,
 });
@@ -64,24 +63,18 @@ pub fn deschedule(_process_id: ProcessId) {
     unimplemented!()
 }
 
-pub fn step(stackframe: *mut StackFrame) {
+pub unsafe fn step(stackframe: *mut StackFrame) {
     let mut scheduler = SCHEDULER.lock();
-    if let Some(running) = scheduler.running {
-        unsafe {
-            scheduler
-                .get_proc(running)
-                .expect("running proc")
-                .as_mut()
-                .main_thread
-                .stackframe = stackframe.read()
-        };
-    }
+    let cur_thread = unsafe { thread::cur_thread().as_mut() };
+    cur_thread.update_stackframe(stackframe.read());
     match scheduler.next() {
         Some(id)
             if let Some(mut proc) = scheduler.get_proc(id) =>  {
                 let proc = unsafe { proc.as_mut() };
-                unsafe { stackframe.write(proc.main_thread.stackframe.clone()) };
-                scheduler.running = Some(id);
+                let thread_ptr = proc.threads[0];
+                let thread = thread_ptr.as_ref();
+                stackframe.write(thread.get_stackframe());
+                thread::set_thread(thread_ptr);
                 debug!("running processes '{id}'");
             }
         _ => {}

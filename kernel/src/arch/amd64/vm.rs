@@ -259,6 +259,7 @@ impl PageMap {
 static mut KERNEL_PAGE_MAP_PTR: PageMapPtr = unsafe { PageMapPtr::nullptr() };
 
 pub unsafe fn init() {
+    trace!("initializing vm");
     // Map the kernel map.
     KERNEL_PAGE_MAP_PTR = PageMapPtr::new_alloc();
     for i in 256..PAGE_MAP_ENTRIES {

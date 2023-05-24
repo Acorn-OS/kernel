@@ -1,10 +1,11 @@
+use spin::Mutex;
+
 use super::pmm;
 use crate::arch::vm::{self, PageMapPtr};
 use crate::boot::BootInfo;
 use crate::symbols;
 use crate::util::adr::{PhysAdr, VirtAdr};
 use core::fmt::Debug;
-use spin::Mutex;
 
 pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
 
@@ -94,11 +95,10 @@ impl VirtualMemory {
         allocator
             .push_region(allocator_start, allocator_len)
             .expect("failed to push region for allocator");
-        let map = VirtualMemory {
+        VirtualMemory {
             root_map: unsafe { vm::new_userland_page_map() },
             allocator,
-        };
-        map
+        }
     }
 }
 
@@ -116,7 +116,7 @@ static KERNEL_VMM: Mutex<KernelVmm> = Mutex::new(KernelVmm(VirtualMemory {
     allocator: AllocatorTy::new(),
 }));
 
-pub unsafe fn init(boot_info: &BootInfo) {
+pub unsafe fn init_kernel(boot_info: &BootInfo) {
     // Memory map physical memory as HHDM.
     let mut kernel_vmm = KERNEL_VMM.lock();
     kernel_vmm.0.root_map = vm::kernel_page_map();

@@ -29,4 +29,6 @@ struct IoApicPtr(u64);
 
 impl IoApicPtr {}
 
-pub unsafe fn init() {}
+pub unsafe fn init() {
+    trace!("initializing the IO-APIC");
+}
