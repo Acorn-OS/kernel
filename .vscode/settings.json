@@ -5,7 +5,6 @@
         "kernel/Cargo.toml",
         "modules/Cargo.toml",
         "tools/Cargo.toml",
-        "dep/Cargo.toml",
     ],
     "rust-analyzer.files.excludeDirs": [
         "build",

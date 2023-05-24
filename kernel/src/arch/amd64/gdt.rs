@@ -219,10 +219,10 @@ pub unsafe fn init() {
     let rsp_stack_alloc = pmm::alloc_pages(16);
     let ist1_stack_alloc = pmm::alloc_pages(16);
     TSS = Tss {
-        rsp0: rsp_stack_alloc.virt_adr(),
-        rsp1: rsp_stack_alloc.virt_adr(),
-        rsp2: rsp_stack_alloc.virt_adr(),
-        ist1: ist1_stack_alloc.virt_adr(),
+        rsp0: rsp_stack_alloc.virt().adr(),
+        rsp1: rsp_stack_alloc.virt().adr(),
+        rsp2: rsp_stack_alloc.virt().adr(),
+        ist1: ist1_stack_alloc.virt().adr(),
         ist2: 0,
         ist3: 0,
         ist4: 0,

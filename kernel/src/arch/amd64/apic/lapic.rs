@@ -1,12 +1,13 @@
 use crate::mm::pmm;
+use crate::util::adr::{PhysAdr, VirtAdr};
 
 use super::super::{cpuc, msr};
 
-fn get_local_apic_base_adr() -> u64 {
-    msr::get(msr::BASE_LAPIC_MSR) & 0xffffff000
+fn get_local_apic_base_adr() -> PhysAdr {
+    PhysAdr::new(msr::get(msr::BASE_LAPIC_MSR) & 0xffffff000)
 }
 
-fn set_local_apic_base_adr(_v: u64) {
+fn set_local_apic_base_adr(_v: PhysAdr) {
     unimplemented!()
 }
 
@@ -17,7 +18,7 @@ fn toggle_enabled_local_apic(v: bool) {
 }
 
 #[derive(Clone, Copy)]
-pub struct LApicPtr(u64);
+pub struct LApicPtr(VirtAdr);
 
 impl LApicPtr {
     pub const ID: u16 = 0x20;
@@ -45,14 +46,14 @@ impl LApicPtr {
     pub unsafe fn write_reg(&self, reg: u16, val: u32) {
         debug_assert!(reg < 0x400);
         let reg = reg & 0x0fff;
-        let ptr = (self.0 + reg as u64) as *mut u32;
+        let ptr = self.0.add(reg as usize).ptr() as *mut u32;
         *ptr = val
     }
 
     pub unsafe fn read_reg(&self, reg: u16) -> u32 {
         debug_assert!(reg < 0x400);
         let reg = reg & 0x0fff;
-        let ptr = (self.0 + reg as u64) as *const u32;
+        let ptr = self.0.add(reg as usize).ptr() as *const u32;
         *ptr
     }
 
@@ -66,7 +67,7 @@ pub unsafe fn create_local() -> LApicPtr {
     let phys_adr = get_local_apic_base_adr();
     let virt = pmm::phys_to_hhdm(phys_adr);
     toggle_enabled_local_apic(true);
-    let ptr = LApicPtr(virt as u64);
+    let ptr = LApicPtr(virt);
     // enables the lapic.
     ptr.write_reg(
         LApicPtr::SPURIUOS_INT_VEC,

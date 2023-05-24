@@ -1,6 +1,5 @@
+use crate::freelist::{Error, FreeList, Node};
 use std::println;
-
-use crate::{Error, FreeList, Node};
 
 fn __assert_freelist(freelist: &FreeList, assert: &[(u64, usize)]) {
     let mut head = freelist.head;

@@ -3,6 +3,7 @@ use crate::mm::vmm::{Flags, VirtualMemory};
 use crate::mm::{heap, pmm};
 use crate::process::thread::Thread;
 use crate::process::{self, Process, ProcessId};
+use crate::util::adr::VirtAdr;
 use core::ptr::NonNull;
 use elf::Elf64;
 
@@ -20,22 +21,22 @@ unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {
         let mut off = program_header.p_offset;
         let pages = pages!(bytes) as usize;
         for _ in 0..pages {
-            let hhdm = if let Some(phys) = vmm.virt_to_phys(vadr) {
+            let hhdm = if let Some(phys) = vmm.virt_to_phys(VirtAdr::new(vadr)) {
                 pmm::phys_to_hhdm(phys)
             } else {
                 let alloc = pmm::alloc_pages(1);
                 vmm.map(
-                    Some(align_floor!(vadr, pmm::PAGE_SIZE as u64)),
+                    Some(VirtAdr::new(align_floor!(vadr, pmm::PAGE_SIZE as u64))),
                     1,
                     Flags::Phys {
                         flags: vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::USER,
-                        phys: alloc.phys_adr(),
+                        phys: alloc.phys(),
                     },
                 );
-                alloc.virt_adr()
+                alloc.virt()
             };
             let unalignment = (vadr & (pmm::PAGE_SIZE as u64 - 1)) as usize;
-            let hhdm = hhdm as *mut u8;
+            let hhdm = hhdm.ptr();
             let step = (pmm::PAGE_SIZE - unalignment) as u64;
             hhdm.add(unalignment)
                 .copy_from(elf.as_ptr().add(off as usize), step as usize);

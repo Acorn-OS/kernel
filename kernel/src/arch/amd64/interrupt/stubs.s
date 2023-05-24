@@ -58,13 +58,29 @@
 .endm
 
 .macro HANDLER n, handler 
-	push \n
+	test qword ptr [rsp + 16], 0x3
+	jz 1f
+	
+	swapgs
+
+	1:
+
 	PUSH_REGS
+	
 	mov rdi, rsp 
 	.extern \handler
 	call \handler
+	
 	POP_REGS
-	add rsp, 16 
+	
+	test qword ptr [rsp + 16], 0x3
+	jz 1f
+	
+	swapgs
+
+	1:
+
+	add rsp, 8
 	iretq
 .endm 
 

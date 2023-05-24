@@ -1,9 +1,3 @@
-#![no_std]
-#![feature(allocator_api)]
-#![feature(int_roundings)]
-
-extern crate alloc;
-
 use alloc::slice;
 use core::alloc::{AllocError, Allocator, Layout};
 use core::ptr::NonNull;

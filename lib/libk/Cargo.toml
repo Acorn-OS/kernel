@@ -1,7 +1,0 @@
-[package]
-name = "libk"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-syscall = { path = "../../kernel/lib/syscall" }

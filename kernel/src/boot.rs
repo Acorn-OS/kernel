@@ -65,16 +65,22 @@ pub unsafe extern "C" fn kernel_early() -> ! {
     interrupt::disable();
     logging::init();
     let mut boot_info = BootInfo::get();
+    trace!("initializing pmm");
     pmm::init(&mut boot_info);
-    trace!(
+    debug!(
         "initialized physical memory management with '{}' pages",
         pmm::page_cnt()
     );
-    trace!("initializing heap");
+    trace!("initializing arch specific code");
     arch::arch_init(&mut boot_info);
+    trace!("initializing heap");
     heap::init();
+    trace!("initilizing vmm");
     vmm::init(&boot_info);
+    trace!("initializing kernel elf");
     kernel_elf::init(&boot_info);
+    trace!("calling init arrays");
     call_init_arrays();
+    trace!("entering kernel main...");
     crate::main(boot_info)
 }

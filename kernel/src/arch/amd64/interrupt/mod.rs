@@ -32,7 +32,6 @@ pub struct StackFrame {
     rcx: u64,
     rbx: u64,
     rax: u64,
-    irq_id: u64,
     error: u64,
     rip: u64,
     cs: u64,
@@ -45,7 +44,7 @@ impl StackFrame {
     pub fn new_kernel(ip: u64, sp: u64, page_map: PageMapPtr) -> Self {
         Self {
             cr4: cr4::get(),
-            cr3: page_map.to_phys_adr(),
+            cr3: page_map.to_phys_adr().adr(),
             cr0: cr0::get(),
             rbp: 0,
             r15: 0,
@@ -62,7 +61,6 @@ impl StackFrame {
             rcx: 0,
             rbx: 0,
             rax: 0,
-            irq_id: 0,
             error: 0,
             rip: ip,
             cs: gdt::KERNEL_CODE_SELECTOR as u64,
@@ -75,7 +73,7 @@ impl StackFrame {
     pub fn new_userspace(ip: u64, sp: u64, page_map: PageMapPtr) -> Self {
         Self {
             cr4: cr4::get(),
-            cr3: page_map.to_phys_adr(),
+            cr3: page_map.to_phys_adr().adr(),
             cr0: cr0::get(),
             rbp: 0,
             r15: 0,
@@ -92,7 +90,6 @@ impl StackFrame {
             rcx: 0,
             rbx: 0,
             rax: 0,
-            irq_id: 0,
             error: 0,
             rip: ip,
             cs: gdt::USRSPC_CODE_SELECTOR as u64 | 3,
@@ -131,7 +128,7 @@ static ISR_META_TBL: [IsrMeta; 256] = const {
         tbl[i] = IsrMeta {
             segment: gdt::KERNEL_CODE_SELECTOR,
             ist: 1,
-            gate_type: idt::GateType::Trap,
+            gate_type: idt::GateType::Int,
         };
         i += 1;
     }

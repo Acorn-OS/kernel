@@ -1,5 +1,6 @@
 use crate::boot::BootInfo;
 use crate::mm::pmm;
+use crate::util::adr::PhysAdr;
 
 #[repr(C, packed)]
 struct Rsdp {
@@ -38,7 +39,7 @@ pub struct Rsdt {
 }
 
 fn get_base(rsdp: &Rsdp) -> &'static Rsdt {
-    unsafe { &*(pmm::phys_to_hhdm(rsdp.rsdt_adr as u64) as *const Rsdt) }
+    unsafe { &*(pmm::phys_to_hhdm(PhysAdr::new(rsdp.rsdt_adr as u64)).ptr() as *const Rsdt) }
 }
 
 unsafe fn validate(rsdt: &Rsdt) -> bool {

@@ -3,5 +3,11 @@ name = "std"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-libk = { path = "../libk" }
+[dependencies.allocators]
+path = "../allocators"
+
+[dependencies.kernel]
+path = "../../kernel"
+
+[dependencies.syscall]
+path = "../../kernel/lib/syscall" 

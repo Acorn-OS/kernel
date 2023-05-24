@@ -4,6 +4,7 @@ pub mod interrupt;
 pub mod serial;
 pub mod stack_unwind;
 pub mod vm;
+pub mod process;
 
 mod apic;
 mod boot;
@@ -16,6 +17,11 @@ mod sdt;
 
 use crate::boot::BootInfo;
 use apic::ioapic;
+
+#[allow(non_camel_case_types)]
+pub type vadr = u64;
+#[allow(non_camel_case_types)]
+pub type padr = u64;
 
 #[no_mangle]
 pub unsafe fn arch_init(boot_info: &mut BootInfo) {

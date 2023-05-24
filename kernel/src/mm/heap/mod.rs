@@ -2,13 +2,13 @@ mod primordial;
 
 use crate::mm::pmm;
 use alloc::alloc::Global;
-use bitmap::BitMapPtrAllocator;
+use allocators::bitmap::BitMapPtrAllocator;
+use allocators::freelist::{Error as FreeListError, FreeList};
 use core::alloc::{Allocator, Layout};
 use core::ptr::{null_mut, NonNull};
-use freelist::{Error as FreeListError, FreeList};
 
 type NodeAllocator = BitMapPtrAllocator<3>;
-type AllocatorTy = freelist::FreeListAllocator<NodeAllocator>;
+type AllocatorTy = allocators::freelist::FreeListAllocator<NodeAllocator>;
 
 struct GlobalAlloc {
     allocator: AllocatorTy,
@@ -22,7 +22,7 @@ unsafe impl core::alloc::GlobalAlloc for GlobalAlloc {
             Err(FreeListError::InsufficientSpace) => {
                 let pages = pages!(layout.size());
                 allocator
-                    .push_region(pmm::alloc_pages(pages).virt_adr(), pages * pmm::PAGE_SIZE)
+                    .push_region(pmm::alloc_pages(pages).virt().adr(), pages * pmm::PAGE_SIZE)
                     .expect("failed to allocate additional nodes");
                 allocator.alloc_layout(layout).unwrap_or(null_mut())
             }
@@ -89,9 +89,9 @@ pub unsafe fn init() {
     let bitmap_alloc = pmm::alloc_pages(pages!(bitmap_len * NodeAllocator::PAGE_SIZE));
     GLOBAL_ALLOC = GlobalAlloc {
         allocator: AllocatorTy::with_allocator(BitMapPtrAllocator::new(
-            bitmap_base.as_virt_ptr(),
+            bitmap_base.virt().ptr(),
             bitmap_len,
-            bitmap_alloc.as_virt_ptr(),
+            bitmap_alloc.virt().ptr(),
         )),
     };
 }

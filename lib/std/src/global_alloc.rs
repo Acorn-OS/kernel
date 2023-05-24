@@ -1,4 +1,4 @@
-struct GlobalAlloc;
+struct GlobalAlloc {}
 
 unsafe impl core::alloc::GlobalAlloc for GlobalAlloc {
     unsafe fn alloc(&self, _layout: core::alloc::Layout) -> *mut u8 {
@@ -11,4 +11,4 @@ unsafe impl core::alloc::GlobalAlloc for GlobalAlloc {
 }
 
 #[global_allocator]
-static GLOBAL_ALLOC: GlobalAlloc = GlobalAlloc;
+static GLOBAL_ALLOC: GlobalAlloc = GlobalAlloc {};

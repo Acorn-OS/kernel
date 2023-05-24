@@ -5,7 +5,11 @@ edition = "2021"
 
 [[bin]]
 name = "kernel"
-path = "src/main.rs"
+path = "src/kernel.rs"
+
+[lib]
+name = "kernel"
+path = "src/kernel.rs"
 
 [members]
 members = [
@@ -28,20 +32,15 @@ memoffset = "0.8.0"
 [dependencies.ctor]
 path = "deps/ctor"
 
-[dependencies.bitmap]
-path = "../dep/bitmap"
-features = []
-
-[dependencies.buddy]
-path = "../dep/buddy"
-
-[dependencies.freelist]
-path = "../dep/freelist"
+[dependencies.allocators]
+path = "../lib/allocators"
 features = []
 
 [dependencies.bitset]
-path = "../dep/bitset"
+path = "../lib/bitset"
 
 [dependencies.elf]
-path = "../dep/elf"
+path = "../lib/elf"
+
+
 

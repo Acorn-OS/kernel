@@ -1,5 +1,11 @@
 [workspace]
 members = [
+    # bit helper crate
+    "bitset",
+    # elf parser crate
+    "elf",
+    # userspace std
     "std",
-    "libk",
+    # allocators helper crates
+    "allocators"
 ]

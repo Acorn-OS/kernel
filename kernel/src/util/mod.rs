@@ -1,3 +1,5 @@
+pub mod adr;
+
 /// Delays roughly `amount` of cycles.
 #[inline(always)]
 pub fn delay(amount: u64) {

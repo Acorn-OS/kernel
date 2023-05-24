@@ -42,12 +42,13 @@ pub mod serial {
 
 pub mod vm {
     use super::imp::vm;
+    use crate::util::adr::{PhysAdr, VirtAdr};
     use core::ptr::NonNull;
 
     pub use vm::PageMapEntry;
 
-    assert_fn!(PageMapEntry::adr: fn(&PageMapEntry) -> u64);
-    assert_fn!(PageMapEntry::set_adr: fn(&mut PageMapEntry, u64));
+    assert_fn!(PageMapEntry::adr: fn(&PageMapEntry) -> PhysAdr);
+    assert_fn!(PageMapEntry::set_adr: fn(&mut PageMapEntry, PhysAdr));
     assert_fn!(PageMapEntry::present: fn(&PageMapEntry) -> bool);
 
     pub use vm::PageMapPtr;
@@ -64,13 +65,13 @@ pub mod vm {
     pub const MEDIUM_PAGE_SIZE: usize = vm::MEDIUM_PAGE_SIZE;
     pub const LARGE_PAGE_SIZE: usize = vm::LARGE_PAGE_SIZE;
 
-    export_assert_fn!(vm::map: unsafe fn(PageMapPtr, u64, usize, u64, Flags));
-    export_assert_fn!(vm::unmap: unsafe fn(PageMapPtr, u64, usize));
+    export_assert_fn!(vm::map: unsafe fn(PageMapPtr, VirtAdr, usize, PhysAdr, Flags));
+    export_assert_fn!(vm::unmap: unsafe fn(PageMapPtr, VirtAdr, usize));
     export_assert_fn!(vm::install: unsafe fn(PageMapPtr));
     export_assert_fn!(vm::new_userland_page_map: unsafe fn() -> PageMapPtr);
     export_assert_fn!(vm::kernel_page_map: fn() -> PageMapPtr);
     export_assert_fn!(
-        vm::get_page_entry: unsafe fn(PageMapPtr, u64) -> Option<NonNull<PageMapEntry>>
+        vm::get_page_entry: unsafe fn(PageMapPtr, VirtAdr) -> Option<NonNull<PageMapEntry>>
     );
 }
 
@@ -117,5 +118,10 @@ pub mod stack_unwind {
     assert_fn!(StackFrame::next: fn(&StackFrame) -> *const StackFrame);
     assert_fn!(StackFrame::from_current_stackframe: unsafe fn() -> *const StackFrame);
 }
+
+pub mod process {}
+
+pub use imp::padr;
+pub use imp::vadr;
 
 export_assert_fn!(imp::arch_init: unsafe fn(&mut BootInfo));

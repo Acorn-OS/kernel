@@ -41,6 +41,8 @@ extern crate memoffset;
 #[macro_use]
 mod macros;
 
+pub mod syscall;
+
 mod arch;
 mod boot;
 mod drivers;
@@ -51,7 +53,6 @@ mod mm;
 mod panic;
 mod process;
 mod symbols;
-mod syscall;
 mod util;
 
 use crate::fs::{initrd, Vfs};

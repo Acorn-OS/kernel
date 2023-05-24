@@ -1,4 +1,5 @@
 #![no_std]
+
 use core::mem::size_of;
 
 pub trait BitSet {

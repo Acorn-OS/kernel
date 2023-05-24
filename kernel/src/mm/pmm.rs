@@ -1,4 +1,6 @@
+use crate::arch::{padr, vadr};
 use crate::boot::BootInfo;
+use crate::util::adr::{PhysAdr, VirtAdr};
 use core::ptr::null_mut;
 use core::slice;
 
@@ -16,17 +18,17 @@ pub fn page_cnt() -> usize {
     unsafe { SIZE }
 }
 
-pub unsafe fn hhdm_to_phys(adr: u64) -> u64 {
-    debug_assert!(adr >= hhdm_base(), "invalid hhdm address");
-    adr - hhdm_base()
+pub unsafe fn hhdm_to_phys(adr: VirtAdr) -> PhysAdr {
+    debug_assert!(adr.adr() >= hhdm_base(), "invalid hhdm address");
+    PhysAdr::new(adr.adr() - hhdm_base())
 }
 
-pub unsafe fn phys_to_hhdm(adr: u64) -> u64 {
-    debug_assert!(adr < hhdm_base(), "address is already hhdm");
-    adr + hhdm_base()
+pub unsafe fn phys_to_hhdm(adr: PhysAdr) -> VirtAdr {
+    debug_assert!(adr.adr() < hhdm_base(), "address is already hhdm");
+    VirtAdr::new(adr.adr() + hhdm_base())
 }
 
-type AllocatorTy = bitmap::BitMapPtrAllocator<PAGE_EXP>;
+type AllocatorTy = allocators::bitmap::BitMapPtrAllocator<PAGE_EXP>;
 
 static ALLOCATOR: AllocatorTy = unsafe { AllocatorTy::new(null_mut(), 0, null_mut()) };
 
@@ -42,19 +44,14 @@ impl PagePtr {
     }
 
     pub unsafe fn from_parts_hhdm(ptr: *mut Page, count: usize) -> Self {
-        Self(hhdm_to_phys(ptr as u64) as *mut _, count)
+        Self(
+            hhdm_to_phys(VirtAdr::new(ptr as u64)).adr() as *mut _,
+            count,
+        )
     }
 
     fn ptr(&self) -> *const Page {
         self.0
-    }
-
-    pub fn phys_adr(&self) -> u64 {
-        self.ptr() as u64
-    }
-
-    pub fn virt_adr(&self) -> u64 {
-        self.phys_adr() + hhdm_base()
     }
 
     pub fn page_count(&self) -> usize {
@@ -65,14 +62,13 @@ impl PagePtr {
         self.page_count() << PAGE_EXP
     }
 
-    pub fn as_phys_ptr<T>(&self) -> *const T {
-        self.0 as *const T
+    pub fn virt(&self) -> VirtAdr {
+        let vadr = self.ptr() as vadr + unsafe { HHDM_BASE as vadr };
+        VirtAdr::new(vadr)
     }
 
-    /// # Safety
-    /// Allows for unsafe mutability without the borrow checker.
-    pub unsafe fn as_virt_ptr<T>(&self) -> *mut T {
-        (self.0 as u64 + hhdm_base()) as *mut T
+    pub fn phys(&self) -> PhysAdr {
+        PhysAdr::new(self.ptr() as padr)
     }
 }
 
@@ -120,7 +116,7 @@ pub unsafe fn init(boot_info: &mut BootInfo) {
             SIZE = alloc_pages as usize;
             found = true;
             ALLOCATOR.init(
-                phys_to_hhdm(base) as *mut u8,
+                phys_to_hhdm(PhysAdr::new(base)).ptr(),
                 len as usize,
                 (base + bitmap_pages * PAGE_SIZE as u64) as *mut u8,
             );
