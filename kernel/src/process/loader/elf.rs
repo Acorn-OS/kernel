@@ -1,19 +1,24 @@
 use crate::arch::vm;
+use crate::mm::pmm;
 use crate::mm::vmm::{Flags, VirtualMemory};
-use crate::mm::{heap, pmm};
-use crate::process::{self, Process, ProcessId};
+use crate::process::thread;
+use crate::process::{self, Process, ProcessId, Result};
 use crate::util::adr::VirtAdr;
 use core::ptr::NonNull;
 use elf::Elf64;
 
-pub fn spawn(elf: &Elf64) -> (NonNull<Process>, ProcessId) {
-    let vmm = unsafe { map(elf, VirtualMemory::new_userland()) };
-    let (mut proc, id) = process::new_proc(heap::alloc(vmm));
+pub fn spawn(elf: &Elf64) -> Result<(NonNull<Process>, ProcessId)> {
+    let mut vmm = unsafe { map(elf, VirtualMemory::new_userland()) };
+    let stack = unsafe { thread::create_userspace_thread_stack(&mut vmm, 256) };
+    let (mut proc, id) = process::new_proc(vmm).expect("failed to create new process");
     unsafe {
-        proc.as_mut()
-            .add_thread(VirtAdr::new(elf.program_entry()), 256)
+        proc.as_mut().lock().add_thread(thread::new_userspace(
+            proc,
+            VirtAdr::new(elf.program_entry()),
+            stack,
+        )?)?
     };
-    (proc, id)
+    Ok((proc, id))
 }
 
 unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {

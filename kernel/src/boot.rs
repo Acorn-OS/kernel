@@ -1,5 +1,5 @@
 use crate::arch::{self, interrupt};
-use crate::mm::{heap, pmm, vmm};
+use crate::mm::{heap, pmm};
 use crate::{kernel_elf, logging};
 use limine::limine_tag;
 
@@ -77,10 +77,8 @@ pub unsafe extern "C" fn kernel_early() -> ! {
     heap::init();
     trace!("initializing kernel elf");
     kernel_elf::init(&boot_info);
-    trace!("initializing kernel vmm");
-    vmm::init_kernel(&boot_info);
     trace!("calling init arrays");
     call_init_arrays();
-    trace!("entering kernel main...");
-    crate::main(boot_info)
+    trace!("starting kernel processes");
+    crate::init::run(boot_info);
 }

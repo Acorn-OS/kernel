@@ -1,5 +1,5 @@
 use super::super::msr;
-use crate::arch::imp::cpu;
+use crate::arch::imp::thread;
 use crate::mm::pmm;
 use crate::util::adr::{PhysAdr, VirtAdr};
 
@@ -80,6 +80,7 @@ pub unsafe fn create_local() -> LApicPtr {
 }
 
 pub unsafe fn eoi() {
-    let core = cpu::cur_core().as_mut();
-    core.lapic_ptr.eoi();
+    let thread = thread::cur_thread().as_ref().get();
+    let core = thread.core_ptr();
+    core.as_ref().lapic_ptr.eoi();
 }

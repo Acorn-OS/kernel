@@ -7,5 +7,7 @@ members = [
     # userspace std
     "std",
     # allocators helper crates
-    "allocators"
+    "allocators",
+    # common buffer types.
+    "buf",
 ]

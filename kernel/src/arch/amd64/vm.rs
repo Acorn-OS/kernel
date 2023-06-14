@@ -1,10 +1,9 @@
+use super::vadr;
 use crate::mm::pmm;
 use crate::util::adr::{PhysAdr, VirtAdr};
 use core::arch::asm;
 use core::mem::size_of;
 use core::ptr::NonNull;
-
-use super::vadr;
 
 assert_eq_size!(usize, u64);
 

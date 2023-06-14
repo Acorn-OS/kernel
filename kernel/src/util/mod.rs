@@ -1,4 +1,5 @@
 pub mod adr;
+pub mod locked;
 
 /// Delays roughly `amount` of cycles.
 #[inline(always)]

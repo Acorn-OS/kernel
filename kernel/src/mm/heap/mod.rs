@@ -1,9 +1,13 @@
+mod error;
+
 use crate::mm::pmm;
 use alloc::alloc::Global;
 use allocators::bitmap::BitMapPtrAllocator;
 use allocators::freelist::{Error as FreeListError, FreeList};
 use core::alloc::{Allocator, Layout};
 use core::ptr::{null_mut, NonNull};
+
+pub use error::{Error, Result};
 
 type NodeAllocator = BitMapPtrAllocator<3>;
 type AllocatorTy = allocators::freelist::FreeListAllocator<NodeAllocator>;

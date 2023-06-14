@@ -3,6 +3,9 @@ name = "std"
 version = "0.1.0"
 edition = "2021"
 
+[dependencies]
+spin = "0.9.5"
+
 [dependencies.allocators]
 path = "../allocators"
 

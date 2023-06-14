@@ -7,7 +7,7 @@ mod syscall;
 use super::cpu::ctrl_regs::{cr0, cr4};
 use super::gdt;
 use super::vm::PageMapPtr;
-use core::arch::global_asm;
+use core::arch::{asm, global_asm};
 
 global_asm!(include_str!("stubs.s"));
 
@@ -164,18 +164,34 @@ static ISR_META_TBL: [IsrMeta; 256] = const {
     tbl
 };
 
+#[inline]
 pub fn disable() {
-    unsafe { core::arch::asm!("cli") };
+    unsafe { asm!("cli", options(nostack)) };
 }
 
+#[inline]
 pub fn enable() {
-    unsafe { core::arch::asm!("sti") }
+    unsafe { asm!("sti", options(nostack)) }
 }
 
+#[inline]
 pub fn halt() {
     unsafe {
-        core::arch::asm!("hlt");
+        asm!("hlt", options(nostack));
     }
+}
+
+#[inline]
+pub fn is_enabled() -> bool {
+    let rflags: u64;
+    unsafe {
+        asm!(
+            "pushf",
+            "pop rax",
+            out("rax") rflags
+        );
+    }
+    rflags & (1 << 9) != 0
 }
 
 pub unsafe fn init() {

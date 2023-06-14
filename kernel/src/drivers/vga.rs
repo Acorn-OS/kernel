@@ -1,5 +1,5 @@
 use crate::arch::fb;
-use spin::Mutex;
+use crate::util::locked::ThreadLocked;
 
 pub const WIDTH: usize = fb::WIDTH;
 pub const HEIGHT: usize = fb::HEIGHT;
@@ -11,7 +11,7 @@ pub struct Cursor {
 
 struct LockedWriter;
 
-static WRITER: Mutex<LockedWriter> = Mutex::new(LockedWriter);
+static WRITER: ThreadLocked<LockedWriter> = ThreadLocked::new(LockedWriter);
 
 static mut CURSOR: Cursor = Cursor { x: 0, y: 0 };
 

@@ -41,34 +41,17 @@ extern crate memoffset;
 #[macro_use]
 mod macros;
 
-pub mod syscall;
-
 mod arch;
 mod boot;
 mod drivers;
 mod fs;
+mod init;
 mod kernel_elf;
 mod logging;
 mod mm;
 mod panic;
 mod process;
+mod scheduler;
 mod symbols;
+mod syscall;
 mod util;
-
-use alloc::string::String;
-use boot::BootInfo;
-use core::ffi::CStr;
-
-fn main(boot_info: BootInfo) -> ! {
-    info!("entered kernel main...");
-    info!("loaded modules count: {}", boot_info.modules.module_count);
-    info!("loaded modules:");
-    for i in 0..boot_info.modules.module_count as usize {
-        let path = unsafe {
-            let ptr = boot_info.modules.modules.as_ptr().add(i);
-            CStr::from_ptr((*ptr).path.as_ptr().unwrap())
-        };
-        info!("    {}", String::from_utf8_lossy(path.to_bytes()));
-    }
-    process::run()
-}

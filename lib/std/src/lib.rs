@@ -55,3 +55,6 @@ mod macros;
 
 /// userspace global allocator.
 mod global_alloc;
+
+// userspace panic handler
+mod panic;

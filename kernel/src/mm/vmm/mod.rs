@@ -1,10 +1,9 @@
-use spin::Mutex;
-
 use super::pmm;
 use crate::arch::vm::{self, PageMapPtr};
 use crate::boot::BootInfo;
 use crate::symbols;
 use crate::util::adr::{PhysAdr, VirtAdr};
+use crate::util::locked::ThreadLocked;
 use core::fmt::Debug;
 
 pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
@@ -106,35 +105,24 @@ pub fn new_userland() -> VirtualMemory {
     VirtualMemory::new_userland()
 }
 
-struct KernelVmm(VirtualMemory);
-
-unsafe impl Sync for KernelVmm {}
-unsafe impl Send for KernelVmm {}
-
-static KERNEL_VMM: Mutex<KernelVmm> = Mutex::new(KernelVmm(VirtualMemory {
-    root_map: unsafe { PageMapPtr::nullptr() },
-    allocator: AllocatorTy::new(),
-}));
-
-pub unsafe fn init_kernel(boot_info: &BootInfo) {
-    // Memory map physical memory as HHDM.
-    let mut kernel_vmm = KERNEL_VMM.lock();
-    kernel_vmm.0.root_map = vm::kernel_page_map();
-    let kernel_vmm = &mut kernel_vmm.0;
-    let region_start = (0xffff << 48) | (1 << 47);
-    let region_len = 1 << 47;
-    kernel_vmm
-        .allocator
+pub unsafe fn create_kernel_vmm(boot_info: &BootInfo) -> VirtualMemory {
+    let mut vmm = VirtualMemory {
+        root_map: vm::kernel_page_map(),
+        allocator: AllocatorTy::new(),
+    };
+    let region_start = 0x1ffff << 47;
+    let region_len = (1 << 47) - 2 * vm::LARGE_PAGE_SIZE;
+    vmm.allocator
         .push_region(region_start, region_len)
         .expect("failed to push region");
-    kernel_vmm.root_map.map(
+    // Memory map physical memory as HHDM.
+    vmm.root_map.map(
         VirtAdr::new(pmm::hhdm_base()),
         4,
         PhysAdr::new(0),
         vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::SIZE_LARGE,
     );
-    kernel_vmm
-        .allocator
+    vmm.allocator
         .reserve_bytes(pmm::hhdm_base(), 4 * vm::LARGE_PAGE_SIZE)
         .expect("failed to reserve memory");
     // Map kernel text section.
@@ -142,39 +130,43 @@ pub unsafe fn init_kernel(boot_info: &BootInfo) {
     let section_text_start = align_floor!(symbols::section_text_start(), PAGE_SIZE as u64);
     let section_text_len = symbols::section_text_end() - section_text_start;
     let section_text_pages = pages!(section_text_len) as u64;
-    kernel_vmm.map(
-        Some(VirtAdr::new(section_text_start)),
+    vmm.root_map.map(
+        VirtAdr::new(section_text_start),
         section_text_pages as usize,
-        Flags::Phys {
-            flags: vm::Flags::PRESENT,
-            phys: kernel_phys_adr,
-        },
+        kernel_phys_adr,
+        vm::Flags::PRESENT,
     );
     kernel_phys_adr = kernel_phys_adr.add(section_text_pages as usize * PAGE_SIZE);
     // Map kernel read only section.
     let section_r_start = align_floor!(symbols::section_r_start(), PAGE_SIZE as u64);
     let section_r_len = symbols::section_r_end() - section_r_start;
     let section_r_pages = pages!(section_r_len) as u64;
-    kernel_vmm.map(
-        Some(VirtAdr::new(section_r_start)),
+    vmm.root_map.map(
+        VirtAdr::new(section_r_start),
         section_r_pages as usize,
-        Flags::Phys {
-            flags: vm::Flags::PRESENT | vm::Flags::XD,
-            phys: kernel_phys_adr,
-        },
+        kernel_phys_adr,
+        vm::Flags::PRESENT | vm::Flags::XD,
     );
     kernel_phys_adr = kernel_phys_adr.add(section_r_pages as usize * PAGE_SIZE);
     // Map kernel read and write section.
     let section_rw_start = align_floor!(symbols::section_rw_start(), PAGE_SIZE as u64);
     let section_rw_len = symbols::section_rw_end() - section_rw_start;
     let section_rw_pages = pages!(section_rw_len);
-    kernel_vmm.map(
-        Some(VirtAdr::new(section_rw_start)),
+    vmm.root_map.map(
+        VirtAdr::new(section_rw_start),
         section_rw_pages as usize,
-        Flags::Phys {
-            flags: vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::XD,
-            phys: kernel_phys_adr,
-        },
+        kernel_phys_adr,
+        vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::XD,
     );
-    kernel_vmm.install();
+    vmm
 }
+
+struct KernelVmm(VirtualMemory);
+
+unsafe impl Sync for KernelVmm {}
+unsafe impl Send for KernelVmm {}
+
+static KERNEL_VMM: ThreadLocked<KernelVmm> = ThreadLocked::new(KernelVmm(VirtualMemory {
+    root_map: unsafe { PageMapPtr::nullptr() },
+    allocator: AllocatorTy::new(),
+}));

@@ -1,4 +1,4 @@
-use crate::arch::imp::cpu;
+use super::thread;
 use core::arch::asm;
 
 #[inline(always)]
@@ -10,8 +10,8 @@ pub fn print_regs() {
         asm!("mov rax, cr3", out("rax") cr3);
         let cr0: u64;
         asm!("mov rax, cr0", out("rax") cr0);
-        let gs_base = cpu::get_gs_base().adr();
-        let gs_kernel_base = cpu::get_kernel_gs_base().adr();
+        let gs_base = thread::get_gs_base().adr();
+        let gs_kernel_base = thread::get_kernel_gs_base().adr();
         let fs: u16;
         asm!("mov ax, fs", out("ax") fs);
         let gs: u16;

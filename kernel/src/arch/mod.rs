@@ -98,6 +98,7 @@ pub mod interrupt {
     export_assert_fn!(interrupt::halt: fn());
     export_assert_fn!(interrupt::enable: fn());
     export_assert_fn!(interrupt::disable: fn());
+    export_assert_fn!(interrupt::is_enabled: fn() -> bool);
 }
 
 pub mod stack_unwind {
@@ -111,28 +112,44 @@ pub mod stack_unwind {
 }
 
 pub mod thread {
+    use super::imp::cpu::Core;
     use super::imp::thread;
     use super::interrupt::StackFrame;
+    use crate::mm::heap;
+    use crate::process::thread::ThreadId;
     use crate::process::Process;
-    use crate::util::adr::VirtAdr;
+    use crate::util::locked::LockGuard;
     use core::ptr::NonNull;
 
-    pub use thread::ThreadId;
+    pub use thread::ArchThread;
 
-    assert_fn!(ThreadId::new: fn(u64) -> ThreadId);
-
-    pub use thread::Thread;
-
-    assert_fn!(Thread::update_stackframe: unsafe fn(&mut Thread, StackFrame));
-    assert_fn!(Thread::get_stackframe: fn(&Thread) -> StackFrame);
-
-    export_assert_fn!(
-        thread::new: unsafe fn(NonNull<Process>, ThreadId, VirtAdr, VirtAdr) -> NonNull<Thread>
+    assert_fn!(
+        ArchThread::new_kernel: fn(NonNull<Process>, ThreadId) -> heap::Result<NonNull<ArchThread>>
     );
+    assert_fn!(
+        ArchThread::new_userspace:
+            fn(NonNull<Process>, ThreadId) -> heap::Result<NonNull<ArchThread>>
+    );
+    assert_fn!(ArchThread::lock: fn(&ArchThread) -> LockGuard<ArchThreadInner>);
+    assert_fn!(ArchThread::get: unsafe fn(&ArchThread) -> &ArchThreadInner);
+    assert_fn!(ArchThread::get_mut: unsafe fn(&mut ArchThread) -> &mut ArchThreadInner);
+    assert_fn!(ArchThread::as_ptr: fn(&ArchThread) -> *const ArchThread);
+    assert_fn!(ArchThread::as_mut_ptr: fn(&mut ArchThread) -> *mut ArchThread);
+    assert_fn!(ArchThread::cur_thread: fn() -> NonNull<ArchThread>);
 
-    export_assert_fn!(thread::free: unsafe fn(*mut Thread));
-    export_assert_fn!(thread::cur_thread: fn() -> NonNull<Thread>);
-    export_assert_fn!(thread::set_thread: unsafe fn(NonNull<Thread>));
+    pub use thread::ArchThreadInner;
+
+    assert_fn!(ArchThreadInner::set_stackframe: unsafe fn(&mut ArchThreadInner, StackFrame));
+    assert_fn!(ArchThreadInner::get_stackframe: fn(&ArchThreadInner) -> StackFrame);
+    assert_fn!(ArchThreadInner::get_id: fn(&ArchThreadInner) -> ThreadId);
+    assert_fn!(ArchThreadInner::get_proc: fn(&ArchThreadInner) -> NonNull<Process>);
+    assert_fn!(ArchThreadInner::core_ptr: fn(&ArchThreadInner) -> NonNull<Core>);
+    assert_fn!(ArchThreadInner::core_ref: fn(&ArchThreadInner) -> Option<&'static Core>);
+    assert_fn!(ArchThreadInner::is_kernel_thread: fn(&ArchThreadInner) -> bool);
+
+    export_assert_fn!(thread::free: unsafe fn(*mut ArchThread));
+    export_assert_fn!(thread::cur_thread: fn() -> NonNull<ArchThread>);
+    export_assert_fn!(thread::set_thread: unsafe fn(&mut ArchThread));
 }
 
 pub mod panic {
