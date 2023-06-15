@@ -99,6 +99,12 @@ pub mod interrupt {
     export_assert_fn!(interrupt::enable: fn());
     export_assert_fn!(interrupt::disable: fn());
     export_assert_fn!(interrupt::is_enabled: fn() -> bool);
+
+    pub fn disable_fn(mut f: impl FnMut()) {
+        interrupt::disable();
+        f();
+        interrupt::enable();
+    }
 }
 
 pub mod stack_unwind {

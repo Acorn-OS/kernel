@@ -8,8 +8,8 @@
 # Ignore kernel generated files
 /kernel/Cargo.lock
 
-# Ignore modules generated files
-/modules/Cargo.lock 
+# Ignore usrspc generated files
+/usrspc/Cargo.lock 
 
 # Ignore lib generated files
 /lib/Cargo.lock

@@ -95,6 +95,7 @@ impl Builder {
 
 struct Projects {
     kernel_elf: PathBuf,
+    usrspc_modules: Vec<PathBuf>,
 }
 
 impl Projects {
@@ -113,15 +114,16 @@ impl Projects {
             out_path: Some(tools_out_path),
         }
         .build();
-        let modules_out_path: PathBuf = format!("{}/modules", path::build().display()).into();
+        let usrspc_out_path: PathBuf = format!("{}/usrspc", path::build().display()).into();
         Builder {
-            path: PathBuf::from("modules"),
+            path: PathBuf::from("usrspc"),
             unstable: true,
-            out_path: Some(modules_out_path),
+            out_path: Some(usrspc_out_path),
         }
         .build();
         Self {
             kernel_elf: format!("{}/kernel", kernel_out_path.display()).into(),
+            usrspc_modules: vec![path::build().join("usrspc/ps2")],
         }
     }
 }
@@ -129,21 +131,40 @@ impl Projects {
 struct ISORoot;
 
 impl ISORoot {
-    fn create(kernel_elf: &Path, limine_cfg: &Path, limine_sys: &Path) -> Self {
-        fs::create_dir_all(format!("{}/boot", path::isoroot().display()))
-            .expect("failed to create boot subdirectory");
-        fs::create_dir_all(format!("{}/modules", path::isoroot().display()))
-            .expect("failed to create modules subdirectory");
+    const USRSPC_PATH: &str = "usrspc";
+    const BOOT_PATH: &str = "boot";
+
+    fn boot_path(path: &str) -> String {
+        format!("{}/{path}", Self::BOOT_PATH)
+    }
+
+    fn create(
+        kernel_elf: &Path,
+        usrspc_modules: &Vec<PathBuf>,
+        limine_cfg: &Path,
+        limine_sys: &Path,
+    ) -> Self {
         let isoroot = Self;
-        isoroot.put("boot/acorn.elf", kernel_elf);
-        isoroot.put("boot/limine.cfg", limine_cfg);
-        isoroot.put("boot/limine.sys", limine_sys);
+        isoroot.mkdir(Self::BOOT_PATH);
+        isoroot.mkdir(Self::USRSPC_PATH);
+        isoroot.put(Self::boot_path("acorn.elf"), kernel_elf);
+        isoroot.put(Self::boot_path("limine.cfg"), limine_cfg);
+        isoroot.put(Self::boot_path("limine.sys"), limine_sys);
+        for module in usrspc_modules {
+            isoroot.put_module(module)
+        }
         isoroot
+    }
+
+    fn mkdir(&self, path: impl AsRef<str>) {
+        fs::create_dir_all(path::isoroot().join(path.as_ref()))
+            .expect("failed to create boot subdirectory");
     }
 
     fn put_module(&self, file: &Path) {
         let path = format!(
-            "modules/{}",
+            "{}/{}",
+            Self::USRSPC_PATH,
             file.file_name().expect("invalid file").to_string_lossy()
         );
         if self.exists(&path) {
@@ -152,7 +173,8 @@ impl ISORoot {
         self.put(&path, file);
     }
 
-    fn put(&self, path: &str, file: &Path) {
+    fn put(&self, path: impl AsRef<str>, file: &Path) {
+        let path = path.as_ref();
         fs::copy(
             file.clone(),
             format!("{}/{path}", path::isoroot().display()),
@@ -164,7 +186,8 @@ impl ISORoot {
         ));
     }
 
-    fn exists(&self, path: &str) -> bool {
+    fn exists(&self, path: impl AsRef<str>) -> bool {
+        let path = path.as_ref();
         PathBuf::from(format!("{}/{path}", path::isoroot().display())).exists()
     }
 
@@ -294,11 +317,12 @@ fn main() {
     let projects = Projects::build();
     let iso_root = ISORoot::create(
         &projects.kernel_elf,
+        &projects.usrspc_modules,
         &PathBuf::from(thirdparty::limine::LIMINE_CFG),
         &PathBuf::from(thirdparty::limine::LIMINE_SYS),
     );
     let initrd = Initrd::create(
-        vec!["build/modules/ps2"],
+        vec!["build/usrspc/ps2"],
         format!("{}/initrd", path::build().display()).into(),
     );
     iso_root.put_module(initrd.output());

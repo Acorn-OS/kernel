@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    # libraries
+    "lib/librs",
+    # core binaries
+    "core/ps2",
+]

@@ -3,5 +3,5 @@ name = "ps2"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies.std]
-path = "../../../lib/std"
+[dependencies]
+librs = { path = "../../lib/librs" }

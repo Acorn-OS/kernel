@@ -3,7 +3,7 @@
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
         "kernel/Cargo.toml",
-        "modules/Cargo.toml",
+        "usrspc/Cargo.toml",
         "tools/Cargo.toml",
     ],
     "rust-analyzer.files.excludeDirs": [
