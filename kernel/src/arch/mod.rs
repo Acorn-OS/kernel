@@ -53,19 +53,23 @@ pub mod vm {
 
     pub use vm::PageMapPtr;
 
-    pub use vm::Flags;
+    pub use vm::VMFlags;
 
-    assert_const!(Flags::PRESENT: Flags);
-    assert_const!(Flags::RW: Flags);
-    assert_const!(Flags::USER: Flags);
-    assert_const!(Flags::SIZE_MEDIUM: Flags);
-    assert_const!(Flags::SIZE_LARGE: Flags);
+    assert_const!(VMFlags::NONE: VMFlags);
+    assert_const!(VMFlags::PRESENT: VMFlags);
+    assert_const!(VMFlags::RW: VMFlags);
+    assert_const!(VMFlags::USER: VMFlags);
+    assert_const!(VMFlags::RESV: VMFlags);
+    assert_const!(VMFlags::XD: VMFlags);
+
+    assert_const!(VMFlags::SIZE_MEDIUM: VMFlags);
+    assert_const!(VMFlags::SIZE_LARGE: VMFlags);
 
     pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
     pub const MEDIUM_PAGE_SIZE: usize = vm::MEDIUM_PAGE_SIZE;
     pub const LARGE_PAGE_SIZE: usize = vm::LARGE_PAGE_SIZE;
 
-    export_assert_fn!(vm::map: unsafe fn(PageMapPtr, VirtAdr, usize, PhysAdr, Flags));
+    export_assert_fn!(vm::map: unsafe fn(PageMapPtr, VirtAdr, usize, PhysAdr, VMFlags));
     export_assert_fn!(vm::unmap: unsafe fn(PageMapPtr, VirtAdr, usize));
     export_assert_fn!(vm::install: unsafe fn(PageMapPtr));
     export_assert_fn!(vm::new_userland_page_map: unsafe fn() -> PageMapPtr);
@@ -94,6 +98,7 @@ pub mod interrupt {
 
     assert_fn!(StackFrame::new_kernel: fn(u64, u64, PageMapPtr) -> StackFrame);
     assert_fn!(StackFrame::new_userspace: fn(u64, u64, PageMapPtr) -> StackFrame);
+    assert_fn!(StackFrame::zeroed: fn() -> StackFrame);
 
     export_assert_fn!(interrupt::halt: fn());
     export_assert_fn!(interrupt::enable: fn());
@@ -118,44 +123,13 @@ pub mod stack_unwind {
 }
 
 pub mod thread {
-    use super::imp::cpu::Core;
     use super::imp::thread;
-    use super::interrupt::StackFrame;
-    use crate::mm::heap;
-    use crate::process::thread::ThreadId;
-    use crate::process::Process;
-    use crate::util::locked::LockGuard;
-    use core::ptr::NonNull;
+    use crate::process::thread::{Thread, ThreadPtr};
 
     pub use thread::ArchThread;
 
-    assert_fn!(
-        ArchThread::new_kernel: fn(NonNull<Process>, ThreadId) -> heap::Result<NonNull<ArchThread>>
-    );
-    assert_fn!(
-        ArchThread::new_userspace:
-            fn(NonNull<Process>, ThreadId) -> heap::Result<NonNull<ArchThread>>
-    );
-    assert_fn!(ArchThread::lock: fn(&ArchThread) -> LockGuard<ArchThreadInner>);
-    assert_fn!(ArchThread::get: unsafe fn(&ArchThread) -> &ArchThreadInner);
-    assert_fn!(ArchThread::get_mut: unsafe fn(&mut ArchThread) -> &mut ArchThreadInner);
-    assert_fn!(ArchThread::as_ptr: fn(&ArchThread) -> *const ArchThread);
-    assert_fn!(ArchThread::as_mut_ptr: fn(&mut ArchThread) -> *mut ArchThread);
-    assert_fn!(ArchThread::cur_thread: fn() -> NonNull<ArchThread>);
-
-    pub use thread::ArchThreadInner;
-
-    assert_fn!(ArchThreadInner::set_stackframe: unsafe fn(&mut ArchThreadInner, StackFrame));
-    assert_fn!(ArchThreadInner::get_stackframe: fn(&ArchThreadInner) -> StackFrame);
-    assert_fn!(ArchThreadInner::get_id: fn(&ArchThreadInner) -> ThreadId);
-    assert_fn!(ArchThreadInner::get_proc: fn(&ArchThreadInner) -> NonNull<Process>);
-    assert_fn!(ArchThreadInner::core_ptr: fn(&ArchThreadInner) -> NonNull<Core>);
-    assert_fn!(ArchThreadInner::core_ref: fn(&ArchThreadInner) -> Option<&'static Core>);
-    assert_fn!(ArchThreadInner::is_kernel_thread: fn(&ArchThreadInner) -> bool);
-
-    export_assert_fn!(thread::free: unsafe fn(*mut ArchThread));
-    export_assert_fn!(thread::cur_thread: fn() -> NonNull<ArchThread>);
-    export_assert_fn!(thread::set_thread: unsafe fn(&mut ArchThread));
+    export_assert_fn!(thread::cur_thread: fn() -> ThreadPtr);
+    export_assert_fn!(thread::set_thread: unsafe fn(&mut Thread));
 }
 
 pub mod panic {

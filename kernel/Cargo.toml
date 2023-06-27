@@ -7,17 +7,13 @@ edition = "2021"
 name = "kernel"
 path = "src/kernel.rs"
 
-[lib]
-name = "kernel"
-path = "src/kernel.rs"
-
-[members]
+[workspace]
 members = [
     "deps/ctor",
     "lib/syscall",
 ]
 
-[profiles.release]
+[profile.release]
 strip = "none"
 
 [dependencies]

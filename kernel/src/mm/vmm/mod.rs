@@ -1,21 +1,23 @@
+use super::heap::primordial::PrimordialAlloc;
 use super::pmm;
-use crate::arch::vm::{self, PageMapPtr};
+use crate::arch::vm::{self, PageMapPtr, LARGE_PAGE_SIZE};
 use crate::boot::BootInfo;
 use crate::symbols;
 use crate::util::adr::{PhysAdr, VirtAdr};
-use crate::util::locked::ThreadLocked;
 use core::fmt::Debug;
 
 pub const PAGE_SIZE: usize = vm::PAGE_SIZE;
 
-type AllocatorTy = allocators::freelist::FreeList;
+type AllocatorTy = allocators::freelist::FreeList<PrimordialAlloc>;
 
-pub struct VirtualMemory {
+pub type Flags = vm::VMFlags;
+
+pub struct VMM {
     root_map: PageMapPtr,
     allocator: AllocatorTy,
 }
 
-impl Debug for VirtualMemory {
+impl Debug for VMM {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("VirtualMemory")
             .field("root_map", &self.root_map)
@@ -23,26 +25,23 @@ impl Debug for VirtualMemory {
     }
 }
 
-pub enum Flags {
-    Phys { flags: vm::Flags, phys: PhysAdr },
-}
-
-impl VirtualMemory {
+impl VMM {
     pub const PAGE_SIZE: usize = PAGE_SIZE;
 
-    pub fn map(&mut self, virt: Option<VirtAdr>, pages: usize, flags: Flags) -> VirtAdr {
-        let page_size = match flags {
-            Flags::Phys { flags, .. } => {
-                if flags.has(vm::Flags::SIZE_LARGE) {
-                    panic!("no support for large pages")
-                    //vm::LARGE_PAGE_SIZE
-                } else if flags.has(vm::Flags::SIZE_MEDIUM) {
-                    panic!("no support for medium pages")
-                    //vm::MEDIUM_PAGE_SIZE
-                } else {
-                    vm::PAGE_SIZE
-                }
-            }
+    /// if `virt` is null, map will allocate new memory.
+    pub fn map(
+        &mut self,
+        virt: Option<VirtAdr>,
+        pages: usize,
+        flags: Flags,
+        phys_adr: PhysAdr,
+    ) -> VirtAdr {
+        let page_size = if flags.has(Flags::SIZE_LARGE) {
+            vm::LARGE_PAGE_SIZE
+        } else if flags.has(Flags::SIZE_MEDIUM) {
+            vm::MEDIUM_PAGE_SIZE
+        } else {
+            vm::PAGE_SIZE
         };
         let allocated_size = page_size * pages;
         let virt = if let Some(virt) = virt {
@@ -59,14 +58,27 @@ impl VirtualMemory {
                     .expect("failed to alloc aligned bytes") as _,
             )
         };
-        match flags {
-            Flags::Phys { flags, phys } => {
-                debug_assert!(phys.is_aligned(page_size));
-                let phys = phys.align_floor(page_size);
-                unsafe { vm::map(self.root_map, virt, pages, phys, flags) };
-            }
-        }
+        debug_assert!(phys_adr.is_aligned(page_size));
+        let phys_adr = phys_adr.align_floor(page_size);
+        unsafe { vm::map(self.root_map, virt, pages, phys_adr, flags) };
         virt
+    }
+
+    /// if `vadr` is null, then take an empty range.
+    pub fn reserve_range(
+        &mut self,
+        vadr: Option<VirtAdr>,
+        pages: usize,
+    ) -> Result<VirtAdr, allocators::freelist::Error> {
+        if let Some(vadr) = vadr {
+            self.allocator
+                .reserve_bytes(vadr.adr(), pages * PAGE_SIZE)
+                .map(|_| vadr)
+        } else {
+            self.allocator
+                .alloc_aligned_bytes(PAGE_SIZE, pages * PAGE_SIZE)
+                .map(|ptr| VirtAdr::new(ptr as u64))
+        }
     }
 
     pub fn contains_page(&self, virt: VirtAdr) -> bool {
@@ -88,43 +100,43 @@ impl VirtualMemory {
     }
 
     pub fn new_userland() -> Self {
-        let mut allocator = AllocatorTy::new();
+        let mut allocator = unsafe { AllocatorTy::with_allocator(PrimordialAlloc) };
         let allocator_start = 1u64 << 20;
         let allocator_len = (1 << 47) - PAGE_SIZE - allocator_start as usize;
         allocator
             .push_region(allocator_start, allocator_len)
             .expect("failed to push region for allocator");
-        VirtualMemory {
+        VMM {
             root_map: unsafe { vm::new_userland_page_map() },
             allocator,
         }
     }
 }
 
-pub fn new_userland() -> VirtualMemory {
-    VirtualMemory::new_userland()
+pub fn new_userland() -> VMM {
+    VMM::new_userland()
 }
 
-pub unsafe fn create_kernel_vmm(boot_info: &BootInfo) -> VirtualMemory {
-    let mut vmm = VirtualMemory {
+pub unsafe fn create_kernel(boot_info: &BootInfo) -> VMM {
+    let mut vmm = VMM {
         root_map: vm::kernel_page_map(),
-        allocator: AllocatorTy::new(),
+        allocator: AllocatorTy::with_allocator(PrimordialAlloc),
     };
-    let region_start = 0x1ffff << 47;
-    let region_len = (1 << 47) - 2 * vm::LARGE_PAGE_SIZE;
-    vmm.allocator
-        .push_region(region_start, region_len)
-        .expect("failed to push region");
     // Memory map physical memory as HHDM.
+    let hhdm_pages = pmm::hhdm_len() / LARGE_PAGE_SIZE;
     vmm.root_map.map(
         VirtAdr::new(pmm::hhdm_base()),
-        4,
+        hhdm_pages,
         PhysAdr::new(0),
-        vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::SIZE_LARGE,
+        Flags::PRESENT | Flags::RW | Flags::SIZE_LARGE,
     );
+    // create mapable region
+    let region_start = pmm::hhdm_base() + pmm::hhdm_len() as u64;
+    let region_end = u64::MAX - 2 * LARGE_PAGE_SIZE as u64 + 1;
+    let region_len = region_end - region_start;
     vmm.allocator
-        .reserve_bytes(pmm::hhdm_base(), 4 * vm::LARGE_PAGE_SIZE)
-        .expect("failed to reserve memory");
+        .push_region(region_start, region_len as usize)
+        .expect("failed to push region");
     // Map kernel text section.
     let mut kernel_phys_adr = PhysAdr::new(boot_info.kernel_address.physical_base);
     let section_text_start = align_floor!(symbols::section_text_start(), PAGE_SIZE as u64);
@@ -134,7 +146,7 @@ pub unsafe fn create_kernel_vmm(boot_info: &BootInfo) -> VirtualMemory {
         VirtAdr::new(section_text_start),
         section_text_pages as usize,
         kernel_phys_adr,
-        vm::Flags::PRESENT,
+        vm::VMFlags::PRESENT,
     );
     kernel_phys_adr = kernel_phys_adr.add(section_text_pages as usize * PAGE_SIZE);
     // Map kernel read only section.
@@ -145,7 +157,7 @@ pub unsafe fn create_kernel_vmm(boot_info: &BootInfo) -> VirtualMemory {
         VirtAdr::new(section_r_start),
         section_r_pages as usize,
         kernel_phys_adr,
-        vm::Flags::PRESENT | vm::Flags::XD,
+        vm::VMFlags::PRESENT | vm::VMFlags::XD,
     );
     kernel_phys_adr = kernel_phys_adr.add(section_r_pages as usize * PAGE_SIZE);
     // Map kernel read and write section.
@@ -156,17 +168,7 @@ pub unsafe fn create_kernel_vmm(boot_info: &BootInfo) -> VirtualMemory {
         VirtAdr::new(section_rw_start),
         section_rw_pages as usize,
         kernel_phys_adr,
-        vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::XD,
+        vm::VMFlags::PRESENT | vm::VMFlags::RW | vm::VMFlags::XD,
     );
     vmm
 }
-
-struct KernelVmm(VirtualMemory);
-
-unsafe impl Sync for KernelVmm {}
-unsafe impl Send for KernelVmm {}
-
-static KERNEL_VMM: ThreadLocked<KernelVmm> = ThreadLocked::new(KernelVmm(VirtualMemory {
-    root_map: unsafe { PageMapPtr::nullptr() },
-    allocator: AllocatorTy::new(),
-}));

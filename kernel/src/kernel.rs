@@ -13,6 +13,7 @@
 #![feature(if_let_guard)]
 #![feature(inline_const)]
 #![feature(strict_provenance)]
+#![feature(alloc_layout_extra)]
 
 #[macro_use]
 extern crate static_assertions;
@@ -51,7 +52,6 @@ mod logging;
 mod mm;
 mod panic;
 mod process;
-mod scheduler;
 mod symbols;
 mod syscall;
 mod util;

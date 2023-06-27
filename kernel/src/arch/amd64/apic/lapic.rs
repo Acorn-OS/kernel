@@ -80,7 +80,7 @@ pub unsafe fn create_local() -> LApicPtr {
 }
 
 pub unsafe fn eoi() {
-    let thread = thread::cur_thread().as_ref().get();
-    let core = thread.core_ptr();
-    core.as_ref().lapic_ptr.eoi();
+    let thread = thread::cur_thread().get();
+    let core = thread.arch().core_ptr();
+    (*core).lapic_ptr.eoi();
 }

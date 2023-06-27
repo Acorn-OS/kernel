@@ -41,7 +41,7 @@ pub struct StackFrame {
 }
 
 impl StackFrame {
-    pub(super) fn zeroed() -> Self {
+    pub fn zeroed() -> Self {
         Self {
             cr4: 0,
             cr3: 0,

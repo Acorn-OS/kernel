@@ -1,5 +1,5 @@
 use crate::arch::{self, interrupt};
-use crate::mm::{heap, pmm};
+use crate::mm::pmm;
 use crate::{kernel_elf, logging};
 use limine::limine_tag;
 
@@ -68,13 +68,12 @@ pub unsafe extern "C" fn kernel_early() -> ! {
     trace!("initializing pmm");
     pmm::init(&mut boot_info);
     debug!(
-        "initialized physical memory management with '{}' pages",
-        pmm::page_cnt()
+        "initialized hhdm mapping with form 0x{:016x} to 0x{:016x}",
+        pmm::hhdm_base(),
+        pmm::hhdm_base() + pmm::hhdm_len() as u64
     );
     trace!("initializing arch specific code");
     arch::arch_init(&mut boot_info);
-    trace!("initializing heap");
-    heap::init();
     trace!("initializing kernel elf");
     kernel_elf::init(&boot_info);
     trace!("calling init arrays");

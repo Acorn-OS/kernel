@@ -1,21 +1,23 @@
 use crate::arch::{padr, vadr};
 use crate::boot::BootInfo;
 use crate::util::adr::{PhysAdr, VirtAdr};
-use core::ptr::null_mut;
+use crate::util::locked::Locked;
+use allocators::intrustive::free_list::IntrusiveFreeList;
+use core::alloc::Layout;
 use core::slice;
 
 pub const PAGE_EXP: usize = 12;
 pub const PAGE_SIZE: usize = 1 << PAGE_EXP;
 
 static mut HHDM_BASE: u64 = 0;
-static mut SIZE: usize = 0;
+static mut HHDM_PG_CNT: usize = 0;
 
 pub fn hhdm_base() -> u64 {
     unsafe { HHDM_BASE }
 }
 
-pub fn page_cnt() -> usize {
-    unsafe { SIZE }
+pub fn hhdm_len() -> usize {
+    unsafe { HHDM_PG_CNT * PAGE_SIZE }
 }
 
 pub unsafe fn hhdm_to_phys(adr: VirtAdr) -> PhysAdr {
@@ -28,71 +30,81 @@ pub unsafe fn phys_to_hhdm(adr: PhysAdr) -> VirtAdr {
     VirtAdr::new(adr.adr() + hhdm_base())
 }
 
-type AllocatorTy = allocators::bitmap::BitMapPtrAllocator<PAGE_EXP>;
-
-static ALLOCATOR: AllocatorTy = unsafe { AllocatorTy::new(null_mut(), 0, null_mut()) };
+static ALLOCATOR: Locked<IntrusiveFreeList<PAGE_SIZE>> = Locked::new(IntrusiveFreeList::new());
 
 #[repr(C, align(4096))]
 pub struct Page([u8; PAGE_SIZE]);
 
 #[derive(Clone)]
-pub struct PagePtr(*const Page, usize);
+pub struct PagePtr(*mut Page, usize);
 
 impl PagePtr {
-    pub unsafe fn from_parts(ptr: *const Page, count: usize) -> Self {
+    #[inline]
+    pub unsafe fn from_parts(ptr: *mut Page, count: usize) -> Self {
         Self(ptr, count)
     }
 
+    #[inline]
     pub unsafe fn from_parts_hhdm(ptr: *mut Page, count: usize) -> Self {
-        Self(
-            hhdm_to_phys(VirtAdr::new(ptr as u64)).adr() as *mut _,
-            count,
-        )
+        Self(ptr, count)
     }
 
+    #[inline]
     fn ptr(&self) -> *const Page {
         self.0
     }
 
+    #[inline]
     pub fn page_count(&self) -> usize {
         self.1
     }
 
+    #[inline]
     pub fn byte_size(&self) -> usize {
         self.page_count() << PAGE_EXP
     }
 
+    #[inline]
     pub fn virt(&self) -> VirtAdr {
-        let vadr = self.ptr() as vadr + unsafe { HHDM_BASE as vadr };
-        VirtAdr::new(vadr)
+        VirtAdr::new(self.0 as vadr)
     }
 
+    #[inline]
     pub fn phys(&self) -> PhysAdr {
-        PhysAdr::new(self.ptr() as padr)
+        let padr = self.ptr() as padr - unsafe { HHDM_BASE as padr };
+        PhysAdr::new(padr)
     }
 }
 
 #[must_use = "unused allocation causes memory leak"]
+#[inline]
 pub fn alloc_pages(count: usize) -> PagePtr {
-    PagePtr(
-        ALLOCATOR
-            .alloc_pages(count)
-            .expect("failed to allocate physical memory") as *const Page,
-        count,
-    )
+    let mut lock = ALLOCATOR.lock();
+    let alloc = match lock.alloc_layout(Layout::new::<Page>().repeat(count).unwrap().0) {
+        Ok(ok) => ok,
+        Err(e) => {
+            panic!("failed to allocate {count} pages in the PMM with error '{e}'")
+        }
+    };
+    PagePtr(alloc as *mut Page, count)
 }
 
 #[must_use = "unused allocation causes memory leak"]
+#[inline]
 pub fn alloc_pages_zeroed(count: usize) -> PagePtr {
-    let ptr = ALLOCATOR
-        .alloc_pages(count)
-        .expect("failed to allocate physical memory");
-    unsafe { (ptr.add(HHDM_BASE as usize)).write_bytes(0, count << PAGE_EXP) };
-    PagePtr(ptr as *const _, count)
+    let ptr = alloc_pages(count);
+    let virt_ptr = ptr.virt().ptr();
+    unsafe { virt_ptr.write_bytes(0, count << PAGE_EXP) };
+    PagePtr(virt_ptr as *mut Page, count)
 }
 
+#[inline]
 pub fn free_pages(pages: PagePtr) {
-    ALLOCATOR.free_pages(pages.ptr() as *mut _, pages.page_count())
+    let mut lock = ALLOCATOR.lock();
+    let ptr = pages.virt().ptr();
+    let count = pages.1;
+    let layout = Layout::new::<Page>().repeat(count).unwrap().0;
+    lock.free_layout(ptr, layout);
 }
 
 pub unsafe fn init(boot_info: &mut BootInfo) {
@@ -102,32 +114,27 @@ pub unsafe fn init(boot_info: &mut BootInfo) {
     let count = mmap.entry_count;
     let entries = slice::from_raw_parts_mut(mmap.entries.as_ptr(), count as usize);
     let mut found = false;
+    let mut highest_adr = 0;
+    let mut lock = ALLOCATOR.lock();
     for (_index, entry) in entries.iter_mut().enumerate() {
         if entry.typ != limine::LimineMemoryMapEntryType::Usable {
             continue;
         }
         let base = entry.base;
         let len = entry.len;
-        let entry_pages = len >> PAGE_EXP;
-        let resv_bitmap_pages = entry_pages.div_ceil(PAGE_SIZE as u64 * 8);
-        let alloc_pages = entry_pages - resv_bitmap_pages;
-        let bitmap_pages = resv_bitmap_pages;
-        if alloc_pages > 256 {
-            SIZE = alloc_pages as usize;
-            found = true;
-            ALLOCATOR.init(
-                phys_to_hhdm(PhysAdr::new(base)).ptr(),
-                len as usize,
-                (base + bitmap_pages * PAGE_SIZE as u64) as *mut u8,
-            );
-            info!("PMM init: ");
-            info!("    base: 0x{base:016x}");
-            info!("    len:  0x{len:x}");
-            entry.typ = limine::LimineMemoryMapEntryType::Reserved;
-            break;
+        let end_adr = base + len;
+        if end_adr > highest_adr {
+            highest_adr = end_adr;
         }
+        found = true;
+        lock.push_region_unchecked(phys_to_hhdm(PhysAdr::new(base)).ptr(), len as usize);
+        info!("PMM region: ");
+        info!("    base: 0x{base:016x}");
+        info!("    len:  0x{len:x}");
+        entry.typ = limine::LimineMemoryMapEntryType::Reserved;
     }
     if !found {
-        panic!("unable to reserve memory for pmm")
+        panic!("unable to reserve any memory for pmm")
     }
+    HHDM_PG_CNT = highest_adr as usize / PAGE_SIZE;
 }

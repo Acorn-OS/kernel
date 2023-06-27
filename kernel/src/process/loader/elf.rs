@@ -1,27 +1,29 @@
-use crate::arch::vm;
+use crate::arch::interrupt::StackFrame;
 use crate::mm::pmm;
-use crate::mm::vmm::{Flags, VirtualMemory};
-use crate::process::thread;
-use crate::process::{self, Process, ProcessId, Result};
+use crate::mm::vmm::{Flags, VMM};
+use crate::process::thread::{self, ThreadId};
+use crate::process::{self, ProcessId, ProcessPtr, Result};
 use crate::util::adr::VirtAdr;
-use core::ptr::NonNull;
+use alloc::boxed::Box;
 use elf::Elf64;
 
-pub fn spawn(elf: &Elf64) -> Result<(NonNull<Process>, ProcessId)> {
-    let mut vmm = unsafe { map(elf, VirtualMemory::new_userland()) };
+pub fn spawn(elf: &Elf64) -> Result<(ProcessPtr, ProcessId)> {
+    let mut vmm = unsafe { map(elf, VMM::new_userland()) };
     let stack = unsafe { thread::create_userspace_thread_stack(&mut vmm, 256) };
-    let (mut proc, id) = process::new_proc(vmm).expect("failed to create new process");
+    let stackframe = Box::new(StackFrame::new_userspace(
+        elf.program_entry(),
+        stack.adr(),
+        vmm.get_page_map(),
+    ));
+    let (proc, id) = process::new_proc(vmm).expect("failed to create new process");
     unsafe {
-        proc.as_mut().lock().add_thread(thread::new_userspace(
-            proc,
-            VirtAdr::new(elf.program_entry()),
-            stack,
-        )?)?
+        proc.get_mut()
+            .add_thread(thread::new(ThreadId::gen(), proc, stackframe)?)?
     };
     Ok((proc, id))
 }
 
-unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {
+unsafe fn map(elf: &Elf64, mut vmm: VMM) -> VMM {
     // load program headers.
     for program_header in elf.program_headers() {
         let mut bytes = program_header.p_memsz;
@@ -34,12 +36,10 @@ unsafe fn map(elf: &Elf64, mut vmm: VirtualMemory) -> VirtualMemory {
             } else {
                 let alloc = pmm::alloc_pages(1);
                 vmm.map(
-                    Some(VirtAdr::new(align_floor!(vadr, pmm::PAGE_SIZE as u64))),
+                    Some(VirtAdr::new(vadr)),
                     1,
-                    Flags::Phys {
-                        flags: vm::Flags::PRESENT | vm::Flags::RW | vm::Flags::USER,
-                        phys: alloc.phys(),
-                    },
+                    Flags::PRESENT | Flags::RW | Flags::USER,
+                    alloc.phys(),
                 );
                 alloc.virt()
             };

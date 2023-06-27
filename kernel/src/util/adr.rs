@@ -11,16 +11,25 @@ pub struct PhysAdr(padr);
 #[repr(transparent)]
 pub struct VirtAdr(vadr);
 
-const_assert!(size_of::<vadr>() <= size_of::<usize>());
-const_assert!(size_of::<padr>() <= size_of::<usize>());
+// check temporarily just to avoid potential bugs
+const_assert!(size_of::<vadr>() == size_of::<u64>());
+const_assert!(size_of::<padr>() == size_of::<u64>());
 
 macro_rules! impl_adr {
     () => {
+        pub const fn null() -> Self {
+            Self::new(0)
+        }
+
+        pub const fn is_null(self) -> bool {
+            self.0 == 0
+        }
+
         #[inline]
         pub const fn align_ceil(self, align: usize) -> Self {
             assert!(align.is_power_of_two() && align != 0);
             let mask = align as padr - 1;
-            Self(self.0.wrapping_add(mask) & !mask)
+            Self((self.0 + mask) & !mask)
         }
 
         #[inline]
@@ -55,12 +64,12 @@ macro_rules! impl_adr {
 
 impl PhysAdr {
     #[inline]
-    pub fn new(padr: padr) -> Self {
+    pub const fn new(padr: padr) -> Self {
         Self(padr)
     }
 
     #[inline]
-    pub fn adr(self) -> padr {
+    pub const fn adr(self) -> padr {
         self.0
     }
 
@@ -95,7 +104,7 @@ impl VirtAdr {
     }
 
     #[inline]
-    pub fn ptr(self) -> *mut u8 {
+    pub const fn ptr(self) -> *mut u8 {
         self.0 as *mut _
     }
 

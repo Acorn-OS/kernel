@@ -1,9 +1,9 @@
 use super::super::apic::lapic;
 use super::StackFrame;
-use crate::scheduler;
+use crate::process::thread::sched;
 
 #[no_mangle]
 unsafe extern "C" fn irq_timer(stackframe: *mut StackFrame) {
-    scheduler::step(stackframe);
+    sched::step(stackframe);
     lapic::eoi();
 }

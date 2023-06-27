@@ -9,8 +9,5 @@ spin = "0.9.5"
 [dependencies.allocators]
 path = "../../../lib/allocators"
 
-[dependencies.kernel]
-path = "../../../kernel"
-
 [dependencies.syscall]
 path = "../../../kernel/lib/syscall" 

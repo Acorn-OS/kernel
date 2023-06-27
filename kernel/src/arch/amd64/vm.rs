@@ -62,9 +62,10 @@ impl PageMapEntry {
         self.p()
     }
 
-    fn modify_with_flags(&mut self, flags: Flags) -> Self {
-        self.0 |= flags.0 as u64 & 0xfff;
-        self.set_xd(flags.has(Flags::XD));
+    fn modify_with_flags(&mut self, flags: VMFlags) -> Self {
+        self.0 &= !(0xfff | (0xfff << 52));
+        self.0 |= flags.0 as u64;
+        self.set_ps(flags.has_any(VMFlags::SIZE_LARGE | VMFlags::SIZE_MEDIUM));
         *self
     }
 }
@@ -118,7 +119,7 @@ impl PageMapPtr {
         self.0
     }
 
-    pub unsafe fn map(self, virt: VirtAdr, pages: usize, phys: PhysAdr, flags: Flags) {
+    pub unsafe fn map(self, virt: VirtAdr, pages: usize, phys: PhysAdr, flags: VMFlags) {
         self.get().map(virt, pages, phys, flags);
     }
 
@@ -138,7 +139,7 @@ impl PageMapPtr {
 mod get {
     use super::*;
 
-    pub unsafe fn allocate(page_map: PageMapPtr, index: usize, flags: Flags) -> PageMapPtr {
+    pub unsafe fn allocate(page_map: PageMapPtr, index: usize, flags: VMFlags) -> PageMapPtr {
         let entry = page_map.entry(index);
         if entry.p() && entry.ps() {
             panic!("reallocating page")
@@ -163,7 +164,7 @@ mod get {
     }
 }
 
-unsafe fn set(page_map: PageMapPtr, index: usize, phys: PhysAdr, flags: Flags) {
+unsafe fn set(page_map: PageMapPtr, index: usize, phys: PhysAdr, flags: VMFlags) {
     let entry = page_map.entry(index);
     entry.set_adr(phys);
     entry.modify_with_flags(flags);
@@ -200,33 +201,33 @@ impl PageMap {
         Some(get(get::get(get::get(get::get(ptr, d0)?, d1)?, d2)?, d3))
     }
 
-    unsafe fn map(&mut self, mut virt: VirtAdr, pages: usize, mut phys: PhysAdr, flags: Flags) {
+    unsafe fn map(&mut self, mut virt: VirtAdr, pages: usize, mut phys: PhysAdr, flags: VMFlags) {
         let ptr = self.as_ptr();
         fn mask(size: usize) -> usize {
             !(size - 1)
         }
-        let get_flags = Flags::PRESENT | Flags::RW | Flags::USER;
+        let get_flags = VMFlags::PRESENT | VMFlags::RW | VMFlags::USER;
         let set_flags = flags;
-        if flags.has(Flags::SIZE_LARGE) {
+        if flags.has(VMFlags::SIZE_LARGE) {
             for _ in 0..pages {
                 let (d0, d1, _, _, _) = divide_virt_adr(virt);
                 set(
                     get::allocate(ptr, d0, get_flags),
                     d1,
                     phys.mask(mask(LARGE_PAGE_SIZE)),
-                    set_flags | Flags::PS,
+                    set_flags,
                 );
                 virt = virt.add(LARGE_PAGE_SIZE);
                 phys = phys.add(LARGE_PAGE_SIZE);
             }
-        } else if flags.has(Flags::SIZE_MEDIUM) {
+        } else if flags.has(VMFlags::SIZE_MEDIUM) {
             for _ in 0..pages {
                 let (d0, d1, d2, _, _) = divide_virt_adr(virt);
                 set(
                     get::allocate(get::allocate(ptr, d0, get_flags), d1, get_flags),
                     d2,
                     phys.mask(mask(MEDIUM_PAGE_SIZE)),
-                    set_flags | Flags::PS,
+                    set_flags,
                 );
                 virt = virt.add(MEDIUM_PAGE_SIZE);
                 phys = phys.add(MEDIUM_PAGE_SIZE);
@@ -257,53 +258,18 @@ impl PageMap {
 
 static mut KERNEL_PAGE_MAP_PTR: PageMapPtr = unsafe { PageMapPtr::nullptr() };
 
-pub unsafe fn init() {
-    trace!("initializing vm");
-    // Map the kernel map.
-    KERNEL_PAGE_MAP_PTR = PageMapPtr::new_alloc();
-    for i in 256..PAGE_MAP_ENTRIES {
-        set(
-            KERNEL_PAGE_MAP_PTR,
-            i,
-            pmm::alloc_pages_zeroed(1).phys(),
-            Flags::PRESENT | Flags::RW,
-        );
-    }
-}
+bit_flags!(
+    pub struct VMFlags(u64);
+    NONE = 0;
+    PRESENT = 1 << 0;
+    RW = 1 << 1;
+    USER = 1 << 2;
+    RESV = 1 << 9;
 
-#[derive(Clone, Copy)]
-#[must_use]
-#[repr(transparent)]
-pub struct Flags(u32);
-
-impl Flags {
-    pub const NONE: Flags = Flags(0);
-    pub const PRESENT: Flags = Flags(1 << 0);
-    pub const RW: Flags = Flags(1 << 1);
-    pub const USER: Flags = Flags(1 << 2);
-    const PS: Flags = Flags(1 << 7);
-    const RESV: Flags = Flags(1 << 9);
-
-    pub const SIZE_LARGE: Flags = Flags(1 << 16);
-    pub const SIZE_MEDIUM: Flags = Flags(1 << 17);
-    pub const XD: Flags = Flags(1 << 18);
-
-    pub const fn merge(self, other: Self) -> Self {
-        Self(self.0 | other.0)
-    }
-
-    pub const fn has(self, flags: Flags) -> bool {
-        self.0 & flags.0 == flags.0
-    }
-}
-
-impl core::ops::BitOr for Flags {
-    type Output = Self;
-
-    fn bitor(self, rhs: Self) -> Self::Output {
-        self.merge(rhs)
-    }
-}
+    SIZE_LARGE = 1 << 52;
+    SIZE_MEDIUM = 1 << 53;
+    XD = 1 << 63;
+);
 
 pub fn kernel_page_map() -> PageMapPtr {
     unsafe { KERNEL_PAGE_MAP_PTR }
@@ -325,10 +291,24 @@ pub unsafe fn get_page_entry(map: PageMapPtr, virt: VirtAdr) -> Option<NonNull<P
     map.get().get(virt)
 }
 
-pub unsafe fn map(map: PageMapPtr, virt: VirtAdr, pages: usize, phys: PhysAdr, flags: Flags) {
+pub unsafe fn map(map: PageMapPtr, virt: VirtAdr, pages: usize, phys: PhysAdr, flags: VMFlags) {
     map.map(virt, pages, phys, flags)
 }
 
 pub unsafe fn unmap(map: PageMapPtr, _virt: VirtAdr, _pages: usize) {
     map.unmap(_virt, _pages)
+}
+
+pub unsafe fn init() {
+    trace!("initializing vm");
+    // Map the kernel map.
+    KERNEL_PAGE_MAP_PTR = PageMapPtr::new_alloc();
+    for i in 256..PAGE_MAP_ENTRIES {
+        set(
+            KERNEL_PAGE_MAP_PTR,
+            i,
+            pmm::alloc_pages_zeroed(1).phys(),
+            VMFlags::PRESENT | VMFlags::RW,
+        );
+    }
 }

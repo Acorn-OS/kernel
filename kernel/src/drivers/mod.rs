@@ -1,1 +1,2 @@
-pub mod vga;
+pub mod crsr;
+pub mod kbd;
