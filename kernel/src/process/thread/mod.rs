@@ -3,7 +3,7 @@ pub mod sched;
 use crate::arch;
 use crate::arch::interrupt::StackFrame;
 use crate::arch::thread::ArchThread;
-use crate::mm::vmm::{Flags, PAGE_SIZE, VMM};
+use crate::mm::vmm::{Flags, MapTy, PAGE_SIZE, VMM};
 use crate::mm::{heap, pmm};
 use crate::util::adr::VirtAdr;
 use crate::util::locked::{LockGuard, LockPrimitive};
@@ -22,9 +22,10 @@ pub unsafe fn create_userspace_thread_stack(vmm: &mut VMM, pages: usize) -> Virt
     vmm.map(
         Some(virt_adr),
         pages,
-        Flags::PRESENT | Flags::RW | Flags::USER | Flags::XD,
-        alloc.phys(),
+        Flags::RW | Flags::USER,
+        MapTy::Phys { adr: alloc.phys() },
     )
+    .unwrap()
     .add(total_bytes)
 }
 
@@ -107,7 +108,10 @@ impl Thread {
 
     #[inline]
     pub fn make_thread_current(thread: &mut Thread) {
-        unsafe { arch::thread::set_thread(thread) }
+        unsafe {
+            thread.proc.get().vmm.install();
+            arch::thread::set_thread(thread)
+        }
     }
 
     pub fn as_ptr(&self) -> ThreadPtr {

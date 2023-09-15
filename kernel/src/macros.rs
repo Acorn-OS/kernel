@@ -70,8 +70,9 @@ macro_rules! bit_flags {
         pub struct $ident($inner_ty);
 
         impl $ident {
+            pub const NONE: $ident = $ident(0);
             $(
-                pub const $f_ident: $ident = $ident($expr);
+                pub const $f_ident: $ident = $ident(1 << ($expr));
             )*
 
             pub const fn merge(self, other: Self) -> Self {
@@ -92,6 +93,12 @@ macro_rules! bit_flags {
 
             fn bitor(self, rhs: Self) -> Self::Output {
                 self.merge(rhs)
+            }
+        }
+
+        impl core::ops::BitOrAssign for $ident {
+            fn bitor_assign(&mut self, rhs: Self) {
+                *self = *self | rhs;
             }
         }
     };

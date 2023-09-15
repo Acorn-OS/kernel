@@ -1,5 +1,6 @@
 use crate::mm::pmm;
 use crate::mm::vmm::Flags;
+use crate::mm::vmm::MapTy;
 use crate::process::thread;
 use crate::process::thread::Thread;
 use ::syscall as sc;
@@ -29,11 +30,15 @@ unsafe fn free(_ptr: *const u8, _len: usize) -> u64 {
 unsafe fn malloc(cur_thread: &mut Thread, len: usize) -> u64 {
     let mut proc = cur_thread.get_proc().get_locked();
     let pages = pages!(len);
-    let adr = proc.vmm.map(
-        None,
-        pages,
-        Flags::PRESENT | Flags::RW | Flags::XD,
-        pmm::alloc_pages(pages).phys(),
-    );
-    adr.adr()
+    proc.vmm
+        .map(
+            None,
+            pages,
+            Flags::RW,
+            MapTy::Phys {
+                adr: pmm::alloc_pages(pages).phys(),
+            },
+        )
+        .unwrap()
+        .adr()
 }

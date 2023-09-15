@@ -1,6 +1,6 @@
 use crate::arch::interrupt::StackFrame;
 use crate::mm::pmm;
-use crate::mm::vmm::{Flags, VMM};
+use crate::mm::vmm::{Flags, MapTy, VMM};
 use crate::process::thread::{self, ThreadId};
 use crate::process::{self, ProcessId, ProcessPtr, Result};
 use crate::util::adr::VirtAdr;
@@ -38,9 +38,10 @@ unsafe fn map(elf: &Elf64, mut vmm: VMM) -> VMM {
                 vmm.map(
                     Some(VirtAdr::new(vadr)),
                     1,
-                    Flags::PRESENT | Flags::RW | Flags::USER,
-                    alloc.phys(),
-                );
+                    Flags::RW | Flags::USER | Flags::EXECUTABLE,
+                    MapTy::Phys { adr: alloc.phys() },
+                )
+                .unwrap();
                 alloc.virt()
             };
             let unalignment = (vadr & (pmm::PAGE_SIZE as u64 - 1)) as usize;

@@ -22,25 +22,27 @@ unsafe fn create_init_thread_stack(vmm: &mut VMM) -> VirtAdr {
     vmm.map(
         None,
         256,
-        Flags::PRESENT | Flags::RW | Flags::XD,
-        pmm::alloc_pages(256).phys(),
+        Flags::RW,
+        vmm::MapTy::Phys {
+            adr: pmm::alloc_pages(256).phys(),
+        },
     )
+    .unwrap()
     .add(256 * vmm::PAGE_SIZE)
 }
 
 unsafe fn create_init_proc_thread(
     id: ThreadId,
     proc: ProcessPtr,
-    vmm: &mut VMM,
     entry: unsafe extern "C" fn() -> !,
 ) -> ThreadPtr {
     trace!("creating init thread {id}");
     let entry = entry as u64;
-    let stack = create_init_thread_stack(vmm);
+    let stack = create_init_thread_stack(&mut proc.get_mut().vmm);
     let stackframe = Box::new(StackFrame::new_kernel(
         entry,
         stack.adr(),
-        vmm.get_page_map(),
+        proc.get_mut().vmm.get_page_map(),
     ));
     let thread = thread::new(id, proc, stackframe).expect("failed to create init proc thread");
     sched::schedule(thread);
@@ -57,7 +59,7 @@ pub fn init_proc() -> ProcessPtr {
 pub unsafe fn run(boot_info: BootInfo) -> ! {
     trace!("initializing init processes");
 
-    let vmm = vmm::create_kernel(&boot_info);
+    let vmm = vmm::init_kernel_vmm(&boot_info);
     vmm.install();
     let proc = process::new_proc(vmm).unwrap().0;
     INIT_PROC = proc;
@@ -73,10 +75,9 @@ pub unsafe fn run(boot_info: BootInfo) -> ! {
     thread::make_thread_current(empty_thread.get_mut());
     EMPTY_THREAD = empty_thread;
 
-    let vmm = &mut proc.get_mut().vmm;
-    create_init_proc_thread(ThreadId::resv_id(1), proc, vmm, main::main);
-    create_init_proc_thread(ThreadId::resv_id(2), proc, vmm, drivers::kbd::main);
-    create_init_proc_thread(ThreadId::resv_id(3), proc, vmm, drivers::crsr::main);
+    create_init_proc_thread(ThreadId::resv_id(1), proc, main::main);
+    create_init_proc_thread(ThreadId::resv_id(2), proc, drivers::kbd::main);
+    create_init_proc_thread(ThreadId::resv_id(3), proc, drivers::crsr::main);
 
     trace!("starting kernel main thread.");
     interrupt::enable();

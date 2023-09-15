@@ -9,10 +9,10 @@ use core::slice;
 pub const PAGE_EXP: usize = 12;
 pub const PAGE_SIZE: usize = 1 << PAGE_EXP;
 
-static mut HHDM_BASE: u64 = 0;
+static mut HHDM_BASE: VirtAdr = VirtAdr::null();
 static mut HHDM_PG_CNT: usize = 0;
 
-pub fn hhdm_base() -> u64 {
+pub fn hhdm_base() -> VirtAdr {
     unsafe { HHDM_BASE }
 }
 
@@ -21,13 +21,13 @@ pub fn hhdm_len() -> usize {
 }
 
 pub unsafe fn hhdm_to_phys(adr: VirtAdr) -> PhysAdr {
-    debug_assert!(adr.adr() >= hhdm_base(), "invalid hhdm address");
-    PhysAdr::new(adr.adr() - hhdm_base())
+    debug_assert!(adr.adr() >= hhdm_base().adr(), "invalid hhdm address");
+    PhysAdr::new(adr.adr() - hhdm_base().adr())
 }
 
 pub unsafe fn phys_to_hhdm(adr: PhysAdr) -> VirtAdr {
-    debug_assert!(adr.adr() < hhdm_base(), "address is already hhdm");
-    VirtAdr::new(adr.adr() + hhdm_base())
+    debug_assert!(adr.adr() < hhdm_base().adr(), "address is already hhdm");
+    VirtAdr::new(adr.adr() + hhdm_base().adr())
 }
 
 static ALLOCATOR: Locked<IntrusiveFreeList<PAGE_SIZE>> = Locked::new(IntrusiveFreeList::new());
@@ -71,7 +71,7 @@ impl PagePtr {
 
     #[inline]
     pub fn phys(&self) -> PhysAdr {
-        let padr = self.ptr() as padr - unsafe { HHDM_BASE as padr };
+        let padr = self.ptr() as padr - unsafe { HHDM_BASE.adr() };
         PhysAdr::new(padr)
     }
 }
@@ -108,8 +108,8 @@ pub fn free_pages(pages: PagePtr) {
 }
 
 pub unsafe fn init(boot_info: &mut BootInfo) {
-    HHDM_BASE = boot_info.hhdm.offset;
-    info!("HHDM base at 0x{HHDM_BASE:016x}");
+    HHDM_BASE = VirtAdr::new(boot_info.hhdm.offset);
+    info!("HHDM base at 0x{:016x}", HHDM_BASE.adr());
     let mmap = &mut boot_info.mmap;
     let count = mmap.entry_count;
     let entries = slice::from_raw_parts_mut(mmap.entries.as_ptr(), count as usize);

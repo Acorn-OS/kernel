@@ -14,6 +14,7 @@
 #![feature(inline_const)]
 #![feature(strict_provenance)]
 #![feature(alloc_layout_extra)]
+#![feature(btreemap_alloc)]
 
 #[macro_use]
 extern crate static_assertions;

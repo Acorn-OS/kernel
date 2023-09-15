@@ -69,8 +69,8 @@ pub unsafe extern "C" fn kernel_early() -> ! {
     pmm::init(&mut boot_info);
     debug!(
         "initialized hhdm mapping with form 0x{:016x} to 0x{:016x}",
-        pmm::hhdm_base(),
-        pmm::hhdm_base() + pmm::hhdm_len() as u64
+        pmm::hhdm_base().adr(),
+        pmm::hhdm_base().add(pmm::hhdm_len()).adr()
     );
     trace!("initializing arch specific code");
     arch::arch_init(&mut boot_info);

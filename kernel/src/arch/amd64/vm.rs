@@ -260,15 +260,14 @@ static mut KERNEL_PAGE_MAP_PTR: PageMapPtr = unsafe { PageMapPtr::nullptr() };
 
 bit_flags!(
     pub struct VMFlags(u64);
-    NONE = 0;
-    PRESENT = 1 << 0;
-    RW = 1 << 1;
-    USER = 1 << 2;
-    RESV = 1 << 9;
+    PRESENT = 0;
+    RW = 1;
+    USER = 2;
+    RESV = 9;
 
-    SIZE_LARGE = 1 << 52;
-    SIZE_MEDIUM = 1 << 53;
-    XD = 1 << 63;
+    SIZE_LARGE = 52;
+    SIZE_MEDIUM = 53;
+    XD = 63;
 );
 
 pub fn kernel_page_map() -> PageMapPtr {

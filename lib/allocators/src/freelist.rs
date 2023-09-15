@@ -9,7 +9,6 @@ use spin::Mutex;
 
 #[derive(Debug)]
 pub enum Error {
-    ReserveError { adr: u64, len: usize },
     InsufficientSpace,
     AllocError(AllocError),
 }
@@ -17,9 +16,6 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(&match self {
-            Error::ReserveError { adr, len } => {
-                format!("reserve error: (adr: 0x{adr:016x}, len: 0x{len:x})",)
-            }
             Error::InsufficientSpace => "insufficient space".to_string(),
             Error::AllocError(e) => format!("alloc error: {e:?}"),
         })
@@ -159,9 +155,11 @@ impl<A: Allocator> FreeList<A> {
         Ok(())
     }
 
-    pub unsafe fn push_node_raw(&mut self, node: *mut Node) {
+    unsafe fn push_node_raw(&mut self, node: *mut Node) {
         debug_assert!(!node.is_null(), "attempted to allocate invalid node");
         debug_assert!((*node).next.is_null());
+        debug_assert!((*node).len > 0);
+        debug_assert!(!(*node).start.overflowing_add((*node).len as u64 - 1).1);
         if self.head.is_null() {
             self.head = node;
         } else {
@@ -183,9 +181,9 @@ impl<A: Allocator> FreeList<A> {
                 let left_end = aligned_start;
                 let left_len = (left_end - left_start) as usize;
                 let right_start = aligned_end;
-                let right_end = cur_node.start + cur_node.len as u64;
+                let (right_end, overflow) = cur_node.start.overflowing_add(cur_node.len as u64);
                 let right_len = (right_end.saturating_sub(right_start)) as usize;
-                if right_end >= aligned_end {
+                if overflow || right_end >= aligned_end {
                     if aligned_start == left_start {
                         cur_node.len -= len;
                         cur_node.start += len as u64;
@@ -201,7 +199,6 @@ impl<A: Allocator> FreeList<A> {
                             self.push_region(right_start, right_len)?;
                         }
                     }
-
                     #[cfg(feature = "log")]
                     log::debug!(
                         "freelist(0x{:016x}) alloc: {:016x}",
@@ -209,10 +206,9 @@ impl<A: Allocator> FreeList<A> {
                         aligned_start
                     );
                     return Ok(aligned_start as *mut u8);
-                } else {
-                    previous = head;
-                    head = cur_node.next;
                 }
+                previous = head;
+                head = cur_node.next;
             }
         }
         Err(Error::InsufficientSpace)
@@ -300,10 +296,10 @@ impl<A: Allocator> FreeList<A> {
         self.free_bytes(ptr as *mut u8, layout.size())
     }
 
-    pub fn reserve_bytes(&mut self, adr: u64, count: usize) -> Result<()> {
+    pub fn reserve_bytes(&mut self, adr: u64, count: usize) -> Result<bool> {
         let adr_beg = adr;
         if count <= 0 {
-            return Ok(());
+            return Ok(true);
         }
         debug_assert!((adr_beg as u128 + count as u128 - 1) <= u64::MAX as u128);
         let adr_end = adr_beg as u128 + count as u128;
@@ -326,13 +322,13 @@ impl<A: Allocator> FreeList<A> {
                     if right_len > 0 {
                         self.push_region(right_start as u64, right_len)?;
                     }
-                    return Ok(());
+                    return Ok(true);
                 }
                 prev = head;
                 head = (*head).next;
             }
         }
-        Err(Error::ReserveError { adr, len: count })
+        Ok(false)
     }
 }
 
@@ -387,7 +383,6 @@ unsafe impl<A: Allocator> Allocator for FreeListAllocator<A> {
             .expect("expected a non-null ptr")),
             Err(err) => Err(match err {
                 Error::InsufficientSpace => AllocError,
-                Error::ReserveError { .. } => AllocError,
                 Error::AllocError(err) => err,
             }),
         }

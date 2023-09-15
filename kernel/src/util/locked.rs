@@ -12,6 +12,9 @@ pub struct LockPrimitive {
     enable_irq: AtomicBool,
 }
 
+unsafe impl Send for LockPrimitive {}
+unsafe impl Sync for LockPrimitive {}
+
 impl LockPrimitive {
     pub const fn new() -> Self {
         Self {
@@ -121,8 +124,11 @@ pub struct ManualLock {
     inner: LockPrimitive,
 }
 
+unsafe impl Send for ManualLock {}
+unsafe impl Sync for ManualLock {}
+
 impl ManualLock {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             inner: LockPrimitive::new(),
         }
@@ -139,10 +145,11 @@ impl ManualLock {
         self.inner.manually_unlock()
     }
 
-    pub fn do_locked(&self, mut f: impl FnMut()) {
+    pub fn do_locked<R>(&self, mut f: impl FnMut() -> R) -> R {
         unsafe { self.lock() }
-        f();
+        let r = f();
         self.unlock();
+        r
     }
 }
 
